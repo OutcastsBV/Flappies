@@ -1,6 +1,6 @@
 # Flappies frontend
 
-The Next.js application that powers the Flappies kiosk: the POS checkout screen, the login flows (password, OAuth, RFID), and the admin dashboard for managing products, inventory, users, and reports.
+The Next.js application that powers the Flappies cash register: the cashier POS screen (register open/close, checkout, corrections), the login flow (password / OAuth), and the admin dashboard for managing products, inventory, users, payment methods, and reports.
 
 See the [repository README](../README.md) for the full picture of how this fits together with the API and ZITADEL, and the [deployment guide](../docs/DEPLOYMENT.md) for running it in production.
 

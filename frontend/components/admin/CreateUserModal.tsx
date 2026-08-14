@@ -2,11 +2,20 @@
 
 import { useState } from 'react';
 import { createUser } from '../../lib/api';
+import type { Role } from '../../lib/types';
+
+const ALL_ROLES: { value: Role; label: string }[] = [
+  { value: 'cashier', label: 'Cashier' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'admin', label: 'Admin' },
+];
 
 export default function CreateUserModal({
+  currentUserRole,
   onClose,
   onSaved,
 }: {
+  currentUserRole: Role;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -15,10 +24,15 @@ export default function CreateUserModal({
   const [password, setPassword] = useState('');
   const [givenName, setGivenName] = useState('');
   const [familyName, setFamilyName] = useState('');
-  const [balance, setBalance] = useState(0);
+  const [role, setRole] = useState<Role>('cashier');
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const availableRoles =
+    currentUserRole === 'manager'
+      ? ALL_ROLES.filter((r) => r.value === 'cashier')
+      : ALL_ROLES;
 
   async function submit() {
     setSaving(true);
@@ -31,7 +45,7 @@ export default function CreateUserModal({
         password,
         given_name: givenName || undefined,
         family_name: familyName || undefined,
-        balance: Number(balance),
+        role,
         is_active: isActive,
       });
       onSaved();
@@ -100,15 +114,18 @@ export default function CreateUserModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Balance (€)</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
+          <label className="block text-sm font-medium mb-1">Role</label>
+          <select
             className="border p-2 w-full rounded"
-            value={balance}
-            onChange={(e) => setBalance(Number(e.target.value))}
-          />
+            value={role}
+            onChange={(e) => setRole(e.target.value as Role)}
+          >
+            {availableRoles.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <label className="flex items-center gap-2">

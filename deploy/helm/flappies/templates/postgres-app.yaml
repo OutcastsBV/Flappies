@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "flappies.fullname" . }}-postgres-app
+  labels:
+    {{- include "flappies.labels" . | nindent 4 }}
+    {{- include "flappies.selectorLabels" (dict "component" "postgres-app" "Release" .Release) | nindent 4 }}
+spec:
+  serviceName: {{ include "flappies.fullname" . }}-postgres-app
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "flappies.selectorLabels" (dict "component" "postgres-app" "Release" .Release) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "flappies.selectorLabels" (dict "component" "postgres-app" "Release" .Release) | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.images.postgres.repository }}:{{ .Values.images.postgres.tag }}"
+          imagePullPolicy: {{ .Values.images.postgres.pullPolicy }}
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "flappies.fullname" . }}-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "flappies.fullname" . }}-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flappies.secretName" . }}
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "flappies", "-d", "flappies"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "flappies", "-d", "flappies"]
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.postgresApp.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.postgresApp.storageClassName }}
+        storageClassName: {{ .Values.postgresApp.storageClassName | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.postgresApp.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "flappies.fullname" . }}-postgres-app
+  labels:
+    {{- include "flappies.labels" . | nindent 4 }}
+    {{- include "flappies.selectorLabels" (dict "component" "postgres-app" "Release" .Release) | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "flappies.selectorLabels" (dict "component" "postgres-app" "Release" .Release) | nindent 4 }}
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres

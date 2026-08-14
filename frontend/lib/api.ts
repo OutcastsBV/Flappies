@@ -1,32 +1,41 @@
 import { API_BASE_URL } from './config';
 import { logoutLocal } from './auth';
 import type {
+  AuditLogEntry,
   CheckoutResult,
+  CorrectionType,
+  Correction,
+  CurrentRegister,
+  EnabledPaymentMethod,
+  PaymentMethodConfig,
   PnLReport,
   Receipt,
+  RegisterSession,
+  Role,
   SalesByDay,
+  SalesByPaymentMethod,
   SalesByProduct,
   SalesSummary,
   ShopConfig,
   ShopInfo,
+  SupportCategory,
   Transaction,
-  TopUpMethod,
-  EpcTopUpResult,
-  StripeTopUpResult,
 } from './types';
 
 export type User = {
   id: number;
   username: string;
   email?: string;
+  role?: Role;
   groups?: string[];
 };
 
 export type UserDetails = {
   id: number;
   username: string;
-  balance: number;
+  role: Role;
   email: string;
+  is_active: boolean;
 };
 
 export type CartItem = {
@@ -85,6 +94,18 @@ async function handleResponse(res: Response) {
   return res.json();
 }
 
+async function handleResponseWithError(res: Response, fallback: string) {
+  if (!res.ok) {
+    if (res.status === 401) {
+      await handleUnauthorized();
+    }
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || fallback);
+  }
+
+  return res.json();
+}
+
 export async function getMe(): Promise<User> {
   const res = await apiFetch(`${API_BASE_URL}/me`);
   return handleResponse(res);
@@ -135,69 +156,20 @@ export async function getInventory(): Promise<Product[]> {
   return handleResponse(res);
 }
 
-export type { TopUpMethod, EpcTopUpResult, StripeTopUpResult } from './types';
-
-export async function getTopUpMethods(): Promise<{
-  methods: TopUpMethod[];
-  top_up_enabled: boolean;
-}> {
-  const res = await apiFetch(`${API_BASE_URL}/topup/methods`);
-  return handleResponse(res);
-}
-
-export async function createEpcTopUp(amount: number): Promise<EpcTopUpResult> {
-  const res = await apiFetch(`${API_BASE_URL}/topup/epc`, {
-    method: 'POST',
-    body: JSON.stringify({ amount }),
-  });
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      await handleUnauthorized();
-    }
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Failed to create bank transfer');
-  }
-
-  return res.json();
-}
-
-export async function createStripeTopUpSession(
-  amount: number
-): Promise<StripeTopUpResult> {
-  const res = await apiFetch(`${API_BASE_URL}/topup/stripe/session`, {
-    method: 'POST',
-    body: JSON.stringify({ amount }),
-  });
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      await handleUnauthorized();
-    }
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Failed to start card payment');
-  }
-
-  return res.json();
-}
-
 export async function checkout(
-  paymentMethod = 'WALLET'
+  paymentMethod: string,
+  details: { amountTendered?: number; paymentReference?: string } = {}
 ): Promise<CheckoutResult> {
   const res = await apiFetch(`${API_BASE_URL}/cart/checkout`, {
     method: 'POST',
-    body: JSON.stringify({ payment_method: paymentMethod }),
+    body: JSON.stringify({
+      payment_method: paymentMethod,
+      amount_tendered: details.amountTendered,
+      payment_reference: details.paymentReference,
+    }),
   });
 
-  if (!res.ok) {
-    if (res.status === 401) {
-      await handleUnauthorized();
-    }
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Checkout failed');
-  }
-
-  return res.json();
+  return handleResponseWithError(res, 'Checkout failed');
 }
 
 export async function getMyTransactions(): Promise<Transaction[]> {
@@ -228,7 +200,7 @@ export async function createUser(user: {
   password: string;
   given_name?: string;
   family_name?: string;
-  balance?: number;
+  role?: Role;
   is_active?: boolean;
 }) {
   const res = await apiFetch(`${API_BASE_URL}/users/`, {
@@ -236,12 +208,7 @@ export async function createUser(user: {
     body: JSON.stringify(user),
   });
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Failed to create user');
-  }
-
-  return res.json();
+  return handleResponseWithError(res, 'Failed to create user');
 }
 
 export async function updateUser(
@@ -249,7 +216,7 @@ export async function updateUser(
   user: {
     username?: string;
     email?: string;
-    balance?: number;
+    role?: Role;
     is_active?: boolean;
   }
 ) {
@@ -257,7 +224,7 @@ export async function updateUser(
     method: 'PUT',
     body: JSON.stringify(user),
   });
-  return handleResponse(res);
+  return handleResponseWithError(res, 'Failed to save user');
 }
 
 export async function createProduct(product: {
@@ -352,8 +319,15 @@ export async function deleteProduct(productId: number) {
   return true;
 }
 
-export async function getTransactions(): Promise<Transaction[]> {
-  const res = await apiFetch(`${API_BASE_URL}/transactions`);
+export async function getTransactions(filters?: {
+  happy_hour?: boolean;
+}): Promise<Transaction[]> {
+  const params = new URLSearchParams();
+  if (filters?.happy_hour != null) {
+    params.set('happy_hour', String(filters.happy_hour));
+  }
+  const q = params.toString();
+  const res = await apiFetch(`${API_BASE_URL}/transactions${q ? `?${q}` : ''}`);
   return handleResponse(res);
 }
 
@@ -378,14 +352,91 @@ export async function updateConfig(config: {
   happy_hour_days?: number[];
   happy_hour_start_time?: string | null;
   happy_hour_end_time?: string | null;
-  operation_mode?: 'self_service' | 'pos';
-  top_up_epc_enabled?: boolean;
-  top_up_stripe_enabled?: boolean;
 }) {
   const res = await apiFetch(`${API_BASE_URL}/config`, {
     method: 'PUT',
     body: JSON.stringify(config),
   });
+  return handleResponse(res);
+}
+
+// Payment methods (modular Cash / Stripe / SumUp config)
+
+export async function getEnabledPaymentMethods(): Promise<
+  EnabledPaymentMethod[]
+> {
+  const res = await apiFetch(`${API_BASE_URL}/payment-methods`);
+  return handleResponse(res);
+}
+
+export async function getPaymentMethodsAdmin(): Promise<
+  PaymentMethodConfig[]
+> {
+  const res = await apiFetch(`${API_BASE_URL}/payment-methods/admin`);
+  return handleResponse(res);
+}
+
+export async function updatePaymentMethod(
+  methodKey: string,
+  update: { enabled?: boolean; config?: Record<string, string | null> }
+): Promise<PaymentMethodConfig> {
+  const res = await apiFetch(`${API_BASE_URL}/payment-methods/${methodKey}`, {
+    method: 'PUT',
+    body: JSON.stringify(update),
+  });
+  return handleResponseWithError(res, 'Failed to update payment method');
+}
+
+// Register (till) sessions
+
+export async function getCurrentRegister(): Promise<CurrentRegister> {
+  const res = await apiFetch(`${API_BASE_URL}/register/current`);
+  return handleResponse(res);
+}
+
+export async function openRegister(
+  startingAmount: number
+): Promise<RegisterSession> {
+  const res = await apiFetch(`${API_BASE_URL}/register/open`, {
+    method: 'POST',
+    body: JSON.stringify({ starting_amount: startingAmount }),
+  });
+  return handleResponseWithError(res, 'Failed to open register');
+}
+
+export async function closeRegister(
+  countedCashAmount: number,
+  notes?: string
+) {
+  const res = await apiFetch(`${API_BASE_URL}/register/close`, {
+    method: 'POST',
+    body: JSON.stringify({ counted_cash_amount: countedCashAmount, notes }),
+  });
+  return handleResponseWithError(res, 'Failed to close register');
+}
+
+export async function getRegisterSessions(): Promise<RegisterSession[]> {
+  const res = await apiFetch(`${API_BASE_URL}/register/sessions`);
+  return handleResponse(res);
+}
+
+// Corrections (refunds / bad prices / bad items)
+
+export async function createCorrection(correction: {
+  transaction_id: number;
+  type: CorrectionType;
+  amount: number;
+  reason: string;
+}): Promise<Correction> {
+  const res = await apiFetch(`${API_BASE_URL}/corrections`, {
+    method: 'POST',
+    body: JSON.stringify(correction),
+  });
+  return handleResponseWithError(res, 'Failed to create correction');
+}
+
+export async function getCorrections(): Promise<Correction[]> {
+  const res = await apiFetch(`${API_BASE_URL}/corrections`);
   return handleResponse(res);
 }
 
@@ -434,5 +485,47 @@ export async function getPnLReport(
   const res = await apiFetch(
     `${API_BASE_URL}/reports/pnl${reportQuery(from, to)}`
   );
+  return handleResponse(res);
+}
+
+export async function getSalesByPaymentMethod(
+  from?: string,
+  to?: string
+): Promise<SalesByPaymentMethod[]> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/reports/sales/by-payment-method${reportQuery(from, to)}`
+  );
+  return handleResponse(res);
+}
+
+// Support / feature requests (admin & manager)
+
+export async function submitSupportRequest(request: {
+  subject: string;
+  message: string;
+  category: SupportCategory;
+}) {
+  const res = await apiFetch(`${API_BASE_URL}/support`, {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+  return handleResponseWithError(res, 'Failed to send support request');
+}
+
+// Audit log (read-only, admin & manager)
+
+export async function getAuditLog(filters?: {
+  action?: string;
+  entity_type?: string;
+  from?: string;
+  to?: string;
+}): Promise<AuditLogEntry[]> {
+  const params = new URLSearchParams();
+  if (filters?.action) params.set('action', filters.action);
+  if (filters?.entity_type) params.set('entity_type', filters.entity_type);
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  const q = params.toString();
+  const res = await apiFetch(`${API_BASE_URL}/audit${q ? `?${q}` : ''}`);
   return handleResponse(res);
 }

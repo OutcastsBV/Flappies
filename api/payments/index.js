@@ -1,16 +1,18 @@
-const { processWalletPayment } = require("./wallet");
+const { processCashPayment } = require("./cash");
+const { processExternalPayment } = require("./external");
 
-const HANDLERS = {
-  WALLET: processWalletPayment,
-  // CARD: require('./card').processCardPayment,
-};
-
-async function processPayment(method, client, userId, total) {
-  const handler = HANDLERS[method];
-  if (!handler) {
-    throw new Error(`Unsupported payment method: ${method}`);
+/**
+ * Route a payment to its handler. CASH gets its own tendered/change-due
+ * logic; every other enabled method (Stripe, SumUp, future providers) is
+ * "record only" for now, handled generically so new methods don't need new
+ * checkout code — just a payment_method_config row + registry entry.
+ */
+function processPayment(method, total, details = {}) {
+  if (method === "CASH") {
+    return processCashPayment(total, details);
   }
-  return handler(client, userId, total);
+
+  return processExternalPayment(total, details);
 }
 
-module.exports = { processPayment, HANDLERS };
+module.exports = { processPayment };

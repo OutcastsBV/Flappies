@@ -1,7 +1,4 @@
 const pool = require("../db");
-const appConfig = require("../config/app");
-const paymentConfig = require("../config/payments");
-const { getAvailableMethods } = require("./topup.service");
 
 function formatTimeValue(value) {
   if (!value) return null;
@@ -20,10 +17,7 @@ async function getConfig() {
     SELECT
       happy_hour_days,
       happy_hour_start_time,
-      happy_hour_end_time,
-      operation_mode,
-      top_up_epc_enabled,
-      top_up_stripe_enabled
+      happy_hour_end_time
     FROM shop_config
     WHERE id = 1
     `
@@ -33,27 +27,12 @@ async function getConfig() {
     happy_hour_days: [],
     happy_hour_start_time: null,
     happy_hour_end_time: null,
-    operation_mode: appConfig.operationMode,
-    top_up_epc_enabled: false,
-    top_up_stripe_enabled: false,
   };
-
-  const topUpMethods = getAvailableMethods(row);
 
   return {
     happy_hour_days: row.happy_hour_days || [],
     happy_hour_start_time: formatTimeValue(row.happy_hour_start_time),
     happy_hour_end_time: formatTimeValue(row.happy_hour_end_time),
-    operation_mode: row.operation_mode || appConfig.operationMode,
-    top_up_enabled: topUpMethods.length > 0,
-    top_up_methods: topUpMethods,
-    top_up_epc_enabled: row.top_up_epc_enabled,
-    top_up_stripe_enabled: row.top_up_stripe_enabled,
-    top_up_epc_configured: paymentConfig.isEpcConfigured(),
-    top_up_stripe_configured: paymentConfig.isStripeConfigured(),
-    payment_methods:
-      appConfig.paymentMethods[row.operation_mode || appConfig.operationMode] ||
-      ["WALLET"],
   };
 }
 
@@ -61,9 +40,6 @@ async function updateConfig({
   happy_hour_days,
   happy_hour_start_time,
   happy_hour_end_time,
-  operation_mode,
-  top_up_epc_enabled,
-  top_up_stripe_enabled,
 }) {
   const result = await pool.query(
     `
@@ -71,45 +47,22 @@ async function updateConfig({
     SET
       happy_hour_days = $1,
       happy_hour_start_time = $2,
-      happy_hour_end_time = $3,
-      operation_mode = COALESCE($4, operation_mode),
-      top_up_epc_enabled = COALESCE($5, top_up_epc_enabled),
-      top_up_stripe_enabled = COALESCE($6, top_up_stripe_enabled)
+      happy_hour_end_time = $3
     WHERE id = 1
     RETURNING
       happy_hour_days,
       happy_hour_start_time,
-      happy_hour_end_time,
-      operation_mode,
-      top_up_epc_enabled,
-      top_up_stripe_enabled
+      happy_hour_end_time
     `,
-    [
-      happy_hour_days ?? [],
-      happy_hour_start_time ?? null,
-      happy_hour_end_time ?? null,
-      operation_mode ?? null,
-      top_up_epc_enabled ?? null,
-      top_up_stripe_enabled ?? null,
-    ]
+    [happy_hour_days ?? [], happy_hour_start_time ?? null, happy_hour_end_time ?? null]
   );
 
   const row = result.rows[0];
-  const topUpMethods = getAvailableMethods(row);
 
   return {
     happy_hour_days: row.happy_hour_days || [],
     happy_hour_start_time: formatTimeValue(row.happy_hour_start_time),
     happy_hour_end_time: formatTimeValue(row.happy_hour_end_time),
-    operation_mode: row.operation_mode,
-    top_up_enabled: topUpMethods.length > 0,
-    top_up_methods: topUpMethods,
-    top_up_epc_enabled: row.top_up_epc_enabled,
-    top_up_stripe_enabled: row.top_up_stripe_enabled,
-    top_up_epc_configured: paymentConfig.isEpcConfigured(),
-    top_up_stripe_configured: paymentConfig.isStripeConfigured(),
-    payment_methods:
-      appConfig.paymentMethods[row.operation_mode] || ["WALLET"],
   };
 }
 

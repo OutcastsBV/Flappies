@@ -7,7 +7,6 @@ test('login page renders sign-in form', async ({ page }) => {
   await expect(page.getByLabel('Username or email')).toBeVisible();
   await expect(page.getByLabel('Password')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
-  await expect(page.getByText('Scan your member card to sign in')).toBeVisible();
 });
 
 test('home page redirects unauthenticated users to login', async ({ page }) => {

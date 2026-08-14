@@ -14,6 +14,10 @@ const MIGRATION_ORDER = [
   "db_patch_6.sql",
   "db_patch_7.sql",
   "db_patch_8.sql",
+  "db_patch_9.sql",
+  "db_patch_10.sql",
+  "db_patch_11.sql",
+  "db_patch_12.sql",
 ];
 
 async function resetDatabase() {

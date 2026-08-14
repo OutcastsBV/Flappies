@@ -2,23 +2,37 @@
 
 import { useState } from 'react';
 import { updateUser } from '../../lib/api';
-import type { User } from '../../lib/types';
+import type { Role, User } from '../../lib/types';
+
+const ALL_ROLES: { value: Role; label: string }[] = [
+  { value: 'cashier', label: 'Cashier' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'admin', label: 'Admin' },
+];
 
 export default function UserModal({
   user,
+  currentUserRole,
   onClose,
   onSaved,
 }: {
   user: User;
+  currentUserRole: Role;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email ?? '');
-  const [balance, setBalance] = useState(user.balance);
+  const [role, setRole] = useState<Role>(user.role);
   const [isActive, setIsActive] = useState(user.is_active);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Managers can only manage cashier accounts and can't promote anyone above cashier.
+  const roleLocked = currentUserRole === 'manager';
+  const availableRoles = roleLocked
+    ? ALL_ROLES.filter((r) => r.value === 'cashier')
+    : ALL_ROLES;
 
   async function submit() {
     setSaving(true);
@@ -28,12 +42,12 @@ export default function UserModal({
       await updateUser(user.id, {
         username,
         email,
-        balance: Number(balance),
+        role,
         is_active: isActive,
       });
       onSaved();
-    } catch {
-      setError('Failed to save user');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save user');
     } finally {
       setSaving(false);
     }
@@ -64,15 +78,19 @@ export default function UserModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Balance (€)</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
+          <label className="block text-sm font-medium mb-1">Role</label>
+          <select
             className="border p-2 w-full rounded"
-            value={balance}
-            onChange={(e) => setBalance(Number(e.target.value))}
-          />
+            value={role}
+            onChange={(e) => setRole(e.target.value as Role)}
+            disabled={roleLocked && user.role !== 'cashier'}
+          >
+            {availableRoles.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <label className="flex items-center gap-2">

@@ -1,0 +1,65 @@
+# Example production overrides — copy to values-production.yaml and edit
+# before running `helm upgrade --install`. See docs/KUBERNETES.md.
+#
+# Only values that typically change per-environment are listed here;
+# everything else falls back to values.yaml defaults.
+
+global:
+  frontendHost: flappies.example.com
+  apiHost: api.flappies.example.com
+  zitadelUrl: https://auth.company.example.com
+  tenantId: acme-corp
+  tlsEnabled: true
+  tlsSecretName: flappies-tls
+  ingressClassName: nginx
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+images:
+  api:
+    tag: latest # pin to a git SHA from your CI build for reproducible deploys
+  frontend:
+    tag: latest
+
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
+postgresApp:
+  storage: 10Gi
+  storageClassName: standard
+
+# Optional — point at your own Prometheus Pushgateway / Loki / SMTP. Leave
+# unset to run without any of them.
+observability:
+  metrics:
+    pushgatewayUrl: "https://pushgateway.company.example.com"
+  logging:
+    lokiUrl: "https://loki.company.example.com"
+
+support:
+  smtp:
+    host: "smtp.office365.com"
+    port: 587
+    secure: false
+    from: "flappies@company.example.com"
+  emailTo: support@flappies.shop
+
+# Prefer a pre-created Secret (from a vault / sealed-secrets / SOPS pipeline)
+# over inline values for anything beyond a quick test:
+#   secrets:
+#     existingSecret: flappies-secrets
+secrets:
+  postgresPassword: "REPLACE_ME"
+  zitadelOrgId: "REPLACE_ME_AFTER_TENANT_PROVISIONING"
+  zitadelClientId: "flappies"
+  zitadelClientSecret: "REPLACE_ME_AFTER_TENANT_PROVISIONING"
+  zitadelAudience: "flappies"
+  zitadelProjectId: "REPLACE_ME_AFTER_TENANT_PROVISIONING"
+  zitadelImpersonatorPat: "REPLACE_ME_AFTER_TENANT_PROVISIONING"
+  zitadelImpersonatorClientId: "REPLACE_ME_AFTER_TENANT_PROVISIONING"
+  zitadelImpersonatorClientSecret: "REPLACE_ME_AFTER_TENANT_PROVISIONING"
+  configEncryptionKey: "REPLACE_ME_32_BYTES"
+  smtpUser: "REPLACE_ME"
+  smtpPassword: "REPLACE_ME"

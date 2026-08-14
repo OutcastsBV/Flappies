@@ -18,6 +18,11 @@ async function getReceipt(transactionId, { userId, isAdmin }) {
     timestamp: transaction.timestamp,
     total_amount: transaction.total_amount,
     payment_method: transaction.payment_method,
+    amount_tendered: transaction.amount_tendered,
+    change_due:
+      transaction.amount_tendered != null
+        ? Number((transaction.amount_tendered - transaction.total_amount).toFixed(2))
+        : undefined,
     username: transaction.username,
     items: transaction.items.map((item) => ({
       name: item.name,

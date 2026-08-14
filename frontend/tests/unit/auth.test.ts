@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getLoginUrl, getLogoutUrl, isAdmin } from '../../lib/auth';
+import { getLoginUrl, getLogoutUrl, isAdmin, isManagerOrAdmin } from '../../lib/auth';
 
 describe('auth helpers', () => {
   it('builds a ZITADEL authorize URL with required params', () => {
@@ -23,5 +23,12 @@ describe('auth helpers', () => {
     expect(isAdmin({ groups: ['admin'] })).toBe(true);
     expect(isAdmin({ groups: ['user'] })).toBe(false);
     expect(isAdmin(null)).toBe(false);
+  });
+
+  it('detects admins and managers, but not cashiers, via isManagerOrAdmin', () => {
+    expect(isManagerOrAdmin({ groups: ['admin'] })).toBe(true);
+    expect(isManagerOrAdmin({ groups: ['manager'] })).toBe(true);
+    expect(isManagerOrAdmin({ groups: ['cashier'] })).toBe(false);
+    expect(isManagerOrAdmin(null)).toBe(false);
   });
 });

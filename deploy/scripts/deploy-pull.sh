@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Pull latest images and start the full production stack (Postgres ×2, ZITADEL, API, frontend).
+# Pull latest images and start the app-only production stack (Postgres, API, frontend).
+# Identity comes from a central/shared ZITADEL instance — this script does not
+# start or configure ZITADEL itself, see docs/DEPLOYMENT.md.
 # Run on the VPS after: cp deploy/.env.production.example deploy/.env && docker login ghcr.io
 set -euo pipefail
 
@@ -18,35 +20,26 @@ set -a
 source .env
 set +a
 
-if [[ ${#ZITADEL_MASTERKEY} -ne 32 ]]; then
-  echo "ERROR: ZITADEL_MASTERKEY must be exactly 32 characters (got ${#ZITADEL_MASTERKEY})." >&2
-  echo "Generate one with: tr -dc A-Za-z0-9 </dev/urandom | head -c 32" >&2
-  exit 1
-fi
+for var in ZITADEL_URL ZITADEL_CLIENT_ID ZITADEL_CLIENT_SECRET ZITADEL_PROJECT_ID ZITADEL_IMPERSONATOR_PAT POSTGRES_PASSWORD CONFIG_ENCRYPTION_KEY; do
+  if [[ -z "${!var:-}" ]]; then
+    echo "ERROR: $var is not set in .env." >&2
+    echo "Provision this tenant in the central ZITADEL first: ./deploy/scripts/provision-tenant-zitadel.sh" >&2
+    exit 1
+  fi
+done
 
-if [[ ${#ZITADEL_ADMIN_PASSWORD} -lt 8 ]] \
-  || ! [[ "$ZITADEL_ADMIN_PASSWORD" =~ [A-Z] ]] \
-  || ! [[ "$ZITADEL_ADMIN_PASSWORD" =~ [a-z] ]] \
-  || ! [[ "$ZITADEL_ADMIN_PASSWORD" =~ [0-9] ]]; then
-  echo "ERROR: ZITADEL_ADMIN_PASSWORD must be at least 8 chars with upper, lower, and a digit." >&2
-  echo "Example: ChangeMe-Admin-Password1!" >&2
-  exit 1
-fi
-
-echo "Pulling all images (postgres, zitadel, api, frontend)..."
+echo "Pulling all images (postgres, api, frontend)..."
 "${COMPOSE[@]}" pull
 
-echo "Starting full stack..."
+echo "Starting app stack..."
 "${COMPOSE[@]}" up -d --remove-orphans
 
-ZITADEL_PORT="${ZITADEL_EXTERNALPORT:-8080}"
-ZITADEL_BASE="http://${PUBLIC_HOST:-10.61.2.101}:${ZITADEL_PORT}"
 echo ""
-echo "Waiting for ZITADEL at ${ZITADEL_BASE} (up to 3 min)..."
+echo "Waiting for the API to become ready (up to 1 min)..."
+API_BASE="http://${PUBLIC_HOST:-10.61.2.101}:${API_PORT:-3001}"
 ready=0
-for _ in $(seq 1 60); do
-  if curl -fsS "${ZITADEL_BASE}/debug/ready" >/dev/null 2>&1 \
-    || curl -fsS "${ZITADEL_BASE}/ui/login" >/dev/null 2>&1; then
+for _ in $(seq 1 20); do
+  if curl -fsS "${API_BASE}/ready" >/dev/null 2>&1; then
     ready=1
     break
   fi
@@ -54,7 +47,7 @@ for _ in $(seq 1 60); do
 done
 
 if [[ "$ready" -eq 0 ]]; then
-  echo "WARNING: ZITADEL did not respond yet. Check: docker logs flappies_zitadel --tail 40" >&2
+  echo "WARNING: API did not respond yet. Check: docker logs flappies_api --tail 40" >&2
 fi
 
 echo ""
@@ -65,25 +58,10 @@ HOST="${PUBLIC_HOST:-10.61.2.101}"
 echo ""
 echo "=== URLs ==="
 echo "  Frontend: http://${HOST}:${FRONTEND_PORT:-3002}"
-echo "  API:      http://${HOST}:${API_PORT:-3001}"
-echo "  ZITADEL:  ${ZITADEL_BASE}"
-echo ""
-echo "=== ZITADEL console login (from your .env — not a built-in default) ==="
-echo "  Username: ${ZITADEL_ADMIN_USER:-admin}"
-echo "  Password: (value of ZITADEL_ADMIN_PASSWORD in .env)"
+echo "  API:      ${API_BASE}"
+echo "  ZITADEL:  ${ZITADEL_URL} (shared/central instance — not managed by this stack)"
 echo ""
 echo "=== Flappies app login (http://${HOST}:${FRONTEND_PORT:-3002}/login) ==="
-echo "  Requires BOTH ZITADEL account AND a row in the app database."
-echo "  After ZITADEL works: ./deploy/scripts/bootstrap-app-admin.sh <zitadel-user-uuid>"
-echo ""
-echo "First-time ZITADEL setup:"
-echo "  1. Open ${ZITADEL_BASE} and sign in with the credentials above"
-echo "  2. Create OAuth app '${ZITADEL_CLIENT_ID:-flappies}' (Web → Code, not User Agent)"
-echo "     Enable Authorization Code + Refresh Token + Token Exchange → copy secret to .env"
-echo "  3. Instance → Members: service user gets IAM_LOGIN_CLIENT"
-echo "     Instance → Security Settings: enable Allow Impersonation"
-echo "     Org → Members: service user gets Org End User Impersonator"
-echo "     Machine user → Keys: client id + secret → ZITADEL_IMPERSONATOR_CLIENT_* in .env"
-echo "     Machine user → PAT → ZITADEL_IMPERSONATOR_PAT in .env"
-echo "  4. docker compose -f deploy/docker-compose.prod.yml up -d api"
-echo "  5. ./deploy/scripts/bootstrap-app-admin.sh <admin-user-uuid-from-zitadel>"
+echo "  Requires BOTH a ZITADEL account (in this tenant's Organization/Project)"
+echo "  AND a row in the app database."
+echo "  After the ZITADEL user exists: ./deploy/scripts/bootstrap-app-admin.sh <zitadel-user-uuid>"

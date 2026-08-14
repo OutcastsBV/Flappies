@@ -12,6 +12,10 @@ function groupTransactionRows(rows) {
         user_id: row.user_id,
         username: row.username,
         payment_method: row.payment_method,
+        amount_tendered: row.amount_tendered != null ? Number(row.amount_tendered) : null,
+        payment_reference: row.payment_reference,
+        register_session_id: row.register_session_id,
+        happy_hour_active: row.happy_hour_active,
         items: [],
       });
     }
@@ -36,6 +40,10 @@ const TRANSACTION_SELECT = `
     t.timestamp,
     t.user_id,
     t.payment_method,
+    t.amount_tendered,
+    t.payment_reference,
+    t.register_session_id,
+    t.happy_hour_active,
     u.username,
     ti.product_id,
     ti.quantity,
@@ -68,6 +76,11 @@ async function getTransactions(filters = {}) {
     values.push(filters.user_id);
   }
 
+  if (filters.happy_hour != null) {
+    conditions.push(`t.happy_hour_active = $${i++}`);
+    values.push(filters.happy_hour);
+  }
+
   const where =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
@@ -94,15 +107,24 @@ async function getTransactionById(id) {
 
 async function createTransaction(
   client,
-  { total_amount, user_id, payment_method = "WALLET" }
+  {
+    total_amount,
+    user_id,
+    payment_method,
+    register_session_id = null,
+    amount_tendered = null,
+    payment_reference = null,
+    happy_hour_active = false,
+  }
 ) {
   const result = await client.query(
     `
-    INSERT INTO "transaction" (total_amount, user_id, payment_method)
-    VALUES ($1, $2, $3)
+    INSERT INTO "transaction"
+      (total_amount, user_id, payment_method, register_session_id, amount_tendered, payment_reference, happy_hour_active)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
     `,
-    [total_amount, user_id, payment_method]
+    [total_amount, user_id, payment_method, register_session_id, amount_tendered, payment_reference, happy_hour_active]
   );
 
   return result.rows[0];

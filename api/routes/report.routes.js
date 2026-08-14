@@ -6,6 +6,7 @@ const {
   getSalesSummary,
   getSalesByProduct,
   getSalesByDay,
+  getSalesByPaymentMethod,
   getPnLReport,
 } = require("../services/report.service");
 
@@ -40,6 +41,17 @@ router.get(
   requireUser,
   async (req, res) => {
     const data = await getSalesByDay(req.query.from, req.query.to);
+    res.json(data);
+  }
+);
+
+router.get(
+  "/sales/by-payment-method",
+  authenticate,
+  requireRole("admin"),
+  requireUser,
+  async (req, res) => {
+    const data = await getSalesByPaymentMethod(req.query.from, req.query.to);
     res.json(data);
   }
 );

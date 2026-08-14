@@ -1,0 +1,40 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "flappies.fullname" . }}
+  labels:
+    {{- include "flappies.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.global.ingressClassName }}
+  {{- if .Values.global.tlsEnabled }}
+  tls:
+    - hosts:
+        - {{ .Values.global.frontendHost }}
+        - {{ .Values.global.apiHost }}
+      secretName: {{ .Values.global.tlsSecretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.global.frontendHost }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "flappies.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.frontend.port }}
+    - host: {{ .Values.global.apiHost }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "flappies.fullname" . }}-api
+                port:
+                  number: {{ .Values.api.port }}
+{{- end }}

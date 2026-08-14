@@ -3,6 +3,33 @@ const authConfig = require("../config/auth");
 const fetch = (...args) =>
   import("node-fetch").then(({ default: fetchFn }) => fetchFn(...args));
 
+const ZITADEL_TIMEOUT_MS = Number(process.env.ZITADEL_HTTP_TIMEOUT_MS || 10_000);
+
+/**
+ * All calls to ZITADEL go through this so a hung/unreachable instance fails
+ * fast with a 503 (retry-able) instead of hanging the request indefinitely
+ * or bubbling up as a confusing generic error.
+ */
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ZITADEL_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    const wrapped = new Error(
+      err.name === "AbortError"
+        ? `ZITADEL request timed out after ${ZITADEL_TIMEOUT_MS}ms`
+        : `ZITADEL is unreachable: ${err.message}`
+    );
+    wrapped.status = 503;
+    wrapped.code = "ZITADEL_UNAVAILABLE";
+    throw wrapped;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function serviceHeaders(extra = {}) {
   const pat = authConfig.servicePat;
   if (!pat) {
@@ -85,7 +112,7 @@ async function searchZitadelUser(identifier) {
     });
   }
 
-  const res = await fetch(`${authConfig.internalBase}/v2/users`, {
+  const res = await fetchWithTimeout(`${authConfig.internalBase}/v2/users`, {
     method: "POST",
     headers: serviceHeaders(),
     body: JSON.stringify({
@@ -135,7 +162,7 @@ async function buildUserCheckCandidates(identifier) {
 }
 
 async function createPasswordSession(userCheck, password) {
-  const createRes = await fetch(`${authConfig.internalBase}/v2/sessions`, {
+  const createRes = await fetchWithTimeout(`${authConfig.internalBase}/v2/sessions`, {
     method: "POST",
     headers: serviceHeaders(),
     body: JSON.stringify({
@@ -165,7 +192,7 @@ async function createPasswordSession(userCheck, password) {
   const sessionToken = created.sessionToken || created.session_token;
 
   try {
-    const getRes = await fetch(
+    const getRes = await fetchWithTimeout(
       `${authConfig.internalBase}/v2/sessions/${sessionId}`,
       {
         method: "GET",
@@ -199,7 +226,7 @@ async function createPasswordSession(userCheck, password) {
     return zitadelTokenForUser(zitadelUserId);
   } finally {
     try {
-      await fetch(`${authConfig.internalBase}/v2/sessions/${sessionId}`, {
+      await fetchWithTimeout(`${authConfig.internalBase}/v2/sessions/${sessionId}`, {
         method: "DELETE",
         headers: serviceHeaders(),
         body: JSON.stringify({ sessionToken }),
@@ -243,7 +270,7 @@ async function getImpersonatorAccessToken() {
     scope: "openid profile email urn:zitadel:iam:org:project:roles",
   });
 
-  const res = await fetch(`${authConfig.internalBase}/oauth/v2/token`, {
+  const res = await fetchWithTimeout(`${authConfig.internalBase}/oauth/v2/token`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -290,7 +317,7 @@ async function zitadelTokenForUser(zitadelUserId) {
     scope: "openid profile email urn:zitadel:iam:org:project:roles",
   });
 
-  const res = await fetch(`${authConfig.internalBase}/oauth/v2/token`, {
+  const res = await fetchWithTimeout(`${authConfig.internalBase}/oauth/v2/token`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -393,7 +420,7 @@ async function createZitadelUser({
     body.organization = { orgId: authConfig.orgId };
   }
 
-  const res = await fetch(`${authConfig.internalBase}/v2/users/human`, {
+  const res = await fetchWithTimeout(`${authConfig.internalBase}/v2/users/human`, {
     method: "POST",
     headers: serviceHeaders(),
     body: JSON.stringify(body),
@@ -416,10 +443,71 @@ async function createZitadelUser({
   return { userId };
 }
 
+/**
+ * Grant (or update) the single app role a user has in the Flappies ZITADEL
+ * project, via the Authorization v2 API. Roles are mutually exclusive here
+ * (admin | manager | cashier), so we look up any existing authorization for
+ * this user/project and update it in place, otherwise create a new one.
+ * Requires ZITADEL_PROJECT_ID and a service user with `user.grant.write`.
+ */
+async function setUserProjectRole(userId, roleKey) {
+  if (!authConfig.projectId) {
+    throw authConfigError(
+      "ZITADEL_PROJECT_ID is not configured",
+      "Set ZITADEL_PROJECT_ID to the project that owns the admin/manager/cashier roles"
+    );
+  }
+
+  const searchRes = await fetchWithTimeout(
+    `${authConfig.internalBase}/zitadel.authorization.v2.AuthorizationService/ListAuthorizations`,
+    {
+      method: "POST",
+      headers: serviceHeaders(),
+      body: JSON.stringify({
+        filters: [
+          { userIdFilter: { userId } },
+          { projectIdFilter: { projectId: authConfig.projectId } },
+        ],
+      }),
+    }
+  );
+
+  let existingId = null;
+  if (searchRes.ok) {
+    const body = await searchRes.json();
+    existingId = body.authorizations?.[0]?.id || null;
+  }
+
+  const base = `${authConfig.internalBase}/zitadel.authorization.v2.AuthorizationService`;
+  const url = existingId
+    ? `${base}/UpdateAuthorization`
+    : `${base}/CreateAuthorization`;
+
+  const payload = existingId
+    ? { id: existingId, roleKeys: [roleKey] }
+    : {
+        userId,
+        projectId: authConfig.projectId,
+        organizationId: authConfig.orgId,
+        roleKeys: [roleKey],
+      };
+
+  const res = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: serviceHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to assign ZITADEL role '${roleKey}': ${text}`);
+  }
+}
+
 async function deleteZitadelUser(userId) {
   if (!userId) return;
 
-  const res = await fetch(`${authConfig.internalBase}/v2/users/${userId}`, {
+  const res = await fetchWithTimeout(`${authConfig.internalBase}/v2/users/${userId}`, {
     method: "DELETE",
     headers: serviceHeaders(),
   });
@@ -435,4 +523,5 @@ module.exports = {
   loginWithPassword,
   createZitadelUser,
   deleteZitadelUser,
+  setUserProjectRole,
 };

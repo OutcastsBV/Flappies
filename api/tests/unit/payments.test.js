@@ -1,45 +1,70 @@
-const { describe, it, mock } = require("node:test");
+const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const { processPayment, HANDLERS } = require("../../payments");
+const { processPayment } = require("../../payments");
+const { processCashPayment } = require("../../payments/cash");
+const { processExternalPayment } = require("../../payments/external");
 
-describe("payments", () => {
-  it("exposes a WALLET handler only", () => {
-    assert.equal(typeof HANDLERS.WALLET, "function");
-    assert.equal(HANDLERS.CARD, undefined);
+describe("payments/cash", () => {
+  it("computes change due for exact/overpaid cash", () => {
+    assert.deepEqual(processCashPayment(10, { amountTendered: 10 }), {
+      changeDue: 0,
+    });
+    assert.deepEqual(processCashPayment(10, { amountTendered: 15 }), {
+      changeDue: 5,
+    });
   });
 
-  it("rejects unsupported payment methods", async () => {
-    await assert.rejects(
-      () => processPayment("CARD", {}, 1, 10),
-      /Unsupported payment method: CARD/
+  it("rejects missing or non-numeric amountTendered", () => {
+    assert.throws(() => processCashPayment(10, {}), /amount_tendered is required/);
+    assert.throws(
+      () => processCashPayment(10, { amountTendered: "abc" }),
+      /amount_tendered is required/
     );
   });
 
-  it("delegates WALLET payments to the wallet handler", async () => {
-    const client = {
-      query: mock.fn(async (sql) => {
-        if (sql.includes("SELECT balance")) {
-          return { rows: [{ balance: 50 }] };
-        }
-        return { rows: [] };
-      }),
-    };
+  it("rejects insufficient cash tendered", () => {
+    assert.throws(
+      () => processCashPayment(10, { amountTendered: 5 }),
+      /less than the total due/
+    );
+  });
+});
 
-    await processPayment("WALLET", client, 7, 12.5);
-    assert.equal(client.query.mock.callCount(), 2);
-    const updateCall = client.query.mock.calls[1];
-    assert.match(updateCall.arguments[0], /UPDATE "user" SET balance/);
-    assert.deepEqual(updateCall.arguments[1], [12.5, 7]);
+describe("payments/external", () => {
+  it("records an optional payment reference with no balance mutation", () => {
+    assert.deepEqual(
+      processExternalPayment(20, { paymentReference: "txn_123" }),
+      { changeDue: 0 }
+    );
+    assert.deepEqual(processExternalPayment(20, {}), { changeDue: 0 });
   });
 
-  it("rejects insufficient wallet balance", async () => {
-    const client = {
-      query: mock.fn(async () => ({ rows: [{ balance: 5 }] })),
-    };
-
-    await assert.rejects(
-      () => processPayment("WALLET", client, 1, 10),
-      /Insufficient balance/
+  it("rejects a non-string payment reference", () => {
+    assert.throws(
+      () => processExternalPayment(20, { paymentReference: 123 }),
+      /must be a string/
     );
+  });
+
+  it("rejects an overly long payment reference", () => {
+    assert.throws(
+      () => processExternalPayment(20, { paymentReference: "x".repeat(141) }),
+      /too long/
+    );
+  });
+});
+
+describe("payments/index dispatcher", () => {
+  it("routes CASH to the cash handler", () => {
+    const result = processPayment("CASH", 10, { amountTendered: 12 });
+    assert.deepEqual(result, { changeDue: 2 });
+  });
+
+  it("routes any other method to the generic external handler", () => {
+    assert.deepEqual(
+      processPayment("STRIPE", 10, { paymentReference: "ch_1" }),
+      { changeDue: 0 }
+    );
+    assert.deepEqual(processPayment("SUMUP", 10, {}), { changeDue: 0 });
   });
 });

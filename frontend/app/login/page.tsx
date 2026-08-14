@@ -2,11 +2,9 @@
 
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCardLogin } from '../../lib/useCardLogin';
 import { loginWithPassword } from '../../lib/auth';
 
 export default function LoginPage() {
-  useCardLogin();
   const router = useRouter();
 
   const [username, setUsername] = useState('');
@@ -76,16 +74,6 @@ export default function LoginPage() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-gray-300" />
-          <span className="text-sm text-gray-500">OR</span>
-          <div className="flex-1 h-px bg-gray-300" />
-        </div>
-
-        <p className="text-center text-gray-600">
-          Scan your member card to sign in
-        </p>
       </div>
     </main>
   );

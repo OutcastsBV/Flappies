@@ -5,12 +5,14 @@ import {
   getSalesSummary,
   getSalesByProduct,
   getSalesByDay,
+  getSalesByPaymentMethod,
   getPnLReport,
 } from '../../lib/api';
 import type {
   SalesSummary,
   SalesByProduct,
   SalesByDay,
+  SalesByPaymentMethod,
   PnLReport,
 } from '../../lib/types';
 
@@ -31,20 +33,23 @@ export default function ReportsPanel() {
   const [summary, setSummary] = useState<SalesSummary | null>(null);
   const [byProduct, setByProduct] = useState<SalesByProduct[]>([]);
   const [byDay, setByDay] = useState<SalesByDay[]>([]);
+  const [byPaymentMethod, setByPaymentMethod] = useState<SalesByPaymentMethod[]>([]);
   const [pnl, setPnl] = useState<PnLReport | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, bp, bd, p] = await Promise.all([
+      const [s, bp, bd, bpm, p] = await Promise.all([
         getSalesSummary(from, to),
         getSalesByProduct(from, to),
         getSalesByDay(from, to),
+        getSalesByPaymentMethod(from, to),
         getPnLReport(from, to),
       ]);
       setSummary(s);
       setByProduct(bp);
       setByDay(bd);
+      setByPaymentMethod(bpm);
       setPnl(p);
     } finally {
       setLoading(false);
@@ -103,9 +108,27 @@ export default function ReportsPanel() {
                 </p>
               </div>
               <div className="bg-white rounded-xl shadow p-5">
-                <p className="text-sm text-gray-600">Wallet revenue</p>
+                <p className="text-sm text-gray-600">Cash revenue</p>
                 <p className="text-2xl font-semibold">
-                  €{Number(summary.wallet_revenue).toFixed(2)}
+                  €{Number(summary.cash_revenue).toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl shadow p-5">
+                <p className="text-sm text-gray-600">Other revenue</p>
+                <p className="text-2xl font-semibold">
+                  €{Number(summary.other_revenue).toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl shadow p-5">
+                <p className="text-sm text-gray-600">Corrections</p>
+                <p className="text-2xl font-semibold text-red-700">
+                  -€{Number(summary.total_corrections).toFixed(2)}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl shadow p-5">
+                <p className="text-sm text-gray-600">Net revenue</p>
+                <p className="text-2xl font-semibold">
+                  €{Number(summary.net_revenue).toFixed(2)}
                 </p>
               </div>
             </div>
@@ -198,6 +221,28 @@ export default function ReportsPanel() {
                       <td className="py-2">{d.day}</td>
                       <td className="py-2">{d.transaction_count}</td>
                       <td className="py-2">€{Number(d.revenue).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Sales by payment method</h2>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="py-2">Method</th>
+                    <th className="py-2">Orders</th>
+                    <th className="py-2">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byPaymentMethod.map((m) => (
+                    <tr key={m.payment_method} className="border-b">
+                      <td className="py-2 capitalize">{m.payment_method.toLowerCase()}</td>
+                      <td className="py-2">{m.transaction_count}</td>
+                      <td className="py-2">€{Number(m.revenue).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>

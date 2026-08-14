@@ -1,6 +1,6 @@
 # Flappies
 
-A self-hosted point-of-sale system built for clubs, non-profits, and small venues that want a simple wallet-based kiosk: members top up a balance, then pay for drinks/snacks with a password, an OAuth login, or by tapping an RFID card.
+A self-hosted cash register system built for clubs, non-profits, and small venues: cashiers open a till with a starting cash float, ring up sales with cash, Stripe, or SumUp, and log corrections (refunds, bad prices, bad items) against past sales, all with role-based staff accounts.
 
 It's a Next.js frontend, a Node.js/Express API, a PostgreSQL database, and [ZITADEL](https://zitadel.com/) for authentication — all shipped as Docker images so it runs comfortably on a small VPS or a Raspberry Pi-class box behind the counter.
 
@@ -8,12 +8,18 @@ It's a Next.js frontend, a Node.js/Express API, a PostgreSQL database, and [ZITA
 
 ## Features
 
-- **Point-of-sale checkout** — fast product grid, cart, and wallet-balance checkout for kiosk use
-- **Three ways to log in** — username/password, OAuth redirect, or tap an RFID card (all backed by ZITADEL)
-- **Wallet top-ups** — manual admin top-up today, with EPC QR and Stripe/Mollie support ready to enable (see [`docs/PAYMENTS.md`](docs/PAYMENTS.md))
-- **Admin dashboard** — manage products, inventory, users, and view sales reports
-- **Auto-logout session security** — idle and absolute session timeouts so a shared kiosk screen can't be used by the wrong person after someone walks away
-- **Runs anywhere** — a handful of Docker containers; no external services required beyond what's bundled
+- **Cashier POS checkout** — fast product grid, cart, and a charge modal supporting cash (with tendered/change-due) or any enabled card provider
+- **Register (till) sessions** — cashiers open a register with a starting cash amount and close it with a counted-cash reconciliation; expected vs. counted cash variance is tracked per session
+- **Corrections** — log a refund, bad price, bad item, or other adjustment against any past transaction, with a reason and running net total
+- **Modular payment methods** — Cash, Stripe, and SumUp can each be enabled/disabled and configured (API keys) independently from the admin dashboard; Stripe/SumUp are recorded only for now (payment is taken on the provider's own terminal/app)
+- **Role-based staff accounts** — Admin (full control incl. config), Manager (everything except managing other managers/admins or changing config), and Cashier (POS + corrections)
+- **Happy hour** — a configurable discount window flags and badges affected sales, and reports/transactions can filter by it
+- **Admin dashboard** — manage products, inventory, users/roles, payment methods, register session history, and sales reports (including a breakdown by payment method)
+- **Read-only audit log** — every sensitive admin/manager action (user/role changes, config edits, payment method changes, register open/close, corrections) is recorded and can never be edited or deleted, even by an admin, even via direct SQL
+- **Observability** — optional Prometheus metrics (via a Pushgateway) and Loki log shipping, both tagged with a `TENANT_ID` for a shared, company-run monitoring stack; brief outages of either never block checkout or login
+- **Support / feature request form** — admins/managers can email the support team straight from the admin panel
+- **Auto-logout session security** — idle and absolute session timeouts so a shared register screen can't be used by the wrong person after someone walks away
+- **Runs anywhere** — a handful of Docker containers; no required external services beyond ZITADEL (Prometheus/Loki/SMTP are all optional)
 
 ---
 
@@ -22,9 +28,9 @@ It's a Next.js frontend, a Node.js/Express API, a PostgreSQL database, and [ZITA
 | Layer | Technology |
 |-------|------------|
 | Frontend | [Next.js](https://nextjs.org/) (App Router), TypeScript |
-| API | [Express](https://expressjs.com/) on Node.js, WebSocket for RFID |
+| API | [Express](https://expressjs.com/) on Node.js |
 | Database | PostgreSQL |
-| Identity | [ZITADEL](https://zitadel.com/) (OIDC) |
+| Identity | [ZITADEL](https://zitadel.com/) (OIDC), roles synced via the Authorization v2 API |
 | Packaging | Docker + Docker Compose |
 | Testing | Vitest, Playwright, and a small Node test runner |
 
@@ -38,7 +44,7 @@ Browser / POS terminal
 │   Frontend    │ ◄──────────────────►│   ZITADEL   │
 │  (Next.js)    │                     │   :8080     │
 └───────┬───────┘                     └──────┬──────┘
-        │ REST + WebSocket                   │
+        │ REST                               │
         ▼                                    ▼
 ┌───────────────┐                     ┌─────────────┐
 │     API       │ ◄──────────────────►│ ZITADEL DB  │
@@ -50,23 +56,21 @@ Browser / POS terminal
 │   App DB      │
 │ (postgres)    │
 └───────────────┘
-
-Optional: ESP32 RFID scanner → WebSocket → API (/ws/rfid)
 ```
 
 | Component | Default port | Purpose |
 |-----------|-------------|---------|
 | Frontend | 3002 | POS UI, login, admin |
-| API | 3001 | REST API, auth, RFID WebSocket |
+| API | 3001 | REST API, auth |
 | ZITADEL | 8080 | Identity provider (OIDC) |
-| App PostgreSQL | internal only | Users, products, transactions |
+| App PostgreSQL | internal only | Users, products, transactions, registers, corrections |
 | ZITADEL PostgreSQL | internal only | ZITADEL's own data |
 
 ---
 
 ## Getting started
 
-Want to deploy this for real, on a VPS? Jump straight to the **[deployment guide](docs/DEPLOYMENT.md)** — it walks through publishing images, configuring ZITADEL, and going live, step by step.
+Want to deploy this for real? Jump straight to the **[VPS deployment guide](docs/DEPLOYMENT.md)** (Docker Compose) or the **[Kubernetes guide](docs/KUBERNETES.md)** (Helm chart) — both walk through publishing images, configuring ZITADEL, and going live, step by step. Testing observability/support/audit features by hand? See the **[Manual QA checklist](docs/MANUAL_QA.md)**.
 
 The rest of this section is for running the app locally to develop or try it out.
 
@@ -98,7 +102,7 @@ Or use the bundled test Postgres container: `npm run test:db:up` (maps to `local
 
 ### 3. Configure ZITADEL
 
-Follow [Configure ZITADEL for login](docs/DEPLOYMENT.md#configure-zitadel-for-login) in the deployment guide, substituting `localhost` for `<PUBLIC_HOST>`.
+Follow [Tenant onboarding (central ZITADEL)](docs/DEPLOYMENT.md#tenant-onboarding-central-zitadel) in the deployment guide, substituting `localhost` for the tenant frontend URL — or its manual-console fallback if you'd rather click through it by hand.
 
 ### 4. Run the API
 
@@ -160,36 +164,39 @@ API e2e tests expect Postgres with the default test credentials. Use `npm run te
 
 ```
 Flappies/
-├── api/                          Express API (REST + RFID WebSocket)
-│   ├── config/                   Env/config loading (auth.js, payments.js, ...)
+├── api/                          Express API (REST)
+│   ├── config/                   Env/config loading (auth.js, app.js, ...)
 │   ├── db/                       Postgres connection pool
-│   ├── lib/                      Cookies, logger, RFID code helpers
-│   ├── middleware/                JWT auth, role checks, token store
-│   ├── payments/                  EPC QR / wallet payment helpers
-│   ├── routes/                    auth, cart, product, inventory, transaction, report, topup, user, config
-│   ├── services/                  Business logic (checkout, ZITADEL, users, receipts, ...)
+│   ├── lib/                      Cookies, logger, config encryption (crypto.js)
+│   ├── middleware/                JWT auth, role checks (requireRole)
+│   ├── payments/                  Cash + generic "record only" payment handlers, method registry
+│   ├── routes/                    auth, cart, product, inventory, transaction, report, register, corrections, payment-methods, user, config
+│   ├── services/                  Business logic (checkout, register, corrections, ZITADEL, users, receipts, ...)
 │   ├── scripts/                   migrate.js, run-tests.js
 │   ├── tests/                     unit/, http/, e2e/, helpers/
 │   ├── Dockerfile
 │   └── .env.example              Local API environment template
 │
 ├── frontend/                     Next.js POS + admin UI
-│   ├── app/                       Routes: /, /login, /callback, /dashboard, /admin
+│   ├── app/                       Routes: /, /login, /callback, /dashboard (POS), /admin
 │   ├── components/                 UI components (admin panels, modals, SessionMonitor)
 │   ├── lib/                        api.ts, auth.ts, session.ts, config.ts, types.ts
 │   ├── tests/                      unit/ (Vitest), e2e/ (Playwright)
 │   ├── Dockerfile
 │   └── .env.example               Local frontend environment template
 │
-├── deploy/                       Everything needed to run the stack on a VPS
+├── deploy/                       Everything needed to run the stack on a VPS or Kubernetes
 │   ├── docker-compose.prod.yml    Production stack (pull-only, GHCR images)
 │   ├── docker-compose.test.yml    Throwaway Postgres for local test runs
 │   ├── .env.production.example    VPS environment template → copy to deploy/.env
+│   ├── helm/flappies/             Helm chart (see docs/KUBERNETES.md)
 │   └── scripts/
-│       ├── deploy-pull.sh         Pull latest images + start/update the full stack
-│       ├── restart-prod.sh        Restart without pulling new images
-│       ├── check-stack.sh         Container status, ports, logs, app DB contents
-│       └── bootstrap-app-admin.sh Link a ZITADEL user into the app database
+│       ├── deploy-pull.sh              Pull latest images + start/update the full stack
+│       ├── restart-prod.sh             Restart without pulling new images
+│       ├── check-stack.sh              Container status, ports, logs, app DB contents
+│       ├── bootstrap-app-admin.sh      Link a ZITADEL user into the app database
+│       ├── provision-tenant-zitadel.sh Provision a new tenant in the central ZITADEL
+│       └── seed-test-accounts.sh       Create manager/cashier test accounts (see docs/MANUAL_QA.md)
 │
 ├── docker_infra/                 Docker Compose for local dev infrastructure
 │   ├── docker-compose.yml         ZITADEL + Postgres + Redis/MinIO/Vault/Unleash/Prometheus/Grafana
@@ -197,10 +204,9 @@ Flappies/
 │   ├── prometheus/ , alertmanager/ Metrics/alerting config
 │   └── .env.example
 │
-├── db_migrations/                 SQL schema: db_init.sql, db_patch_1.sql … db_patch_8.sql
-├── scanner_utils/read_ws/         ESP32 RFID → WebSocket test bridge
+├── db_migrations/                 SQL schema: db_init.sql, db_patch_1.sql … db_patch_12.sql
 ├── load-tests/                    k6 load test (api-health.js)
-├── docs/                          DEPLOYMENT.md (VPS setup), PAYMENTS.md (top-up options)
+├── docs/                          DEPLOYMENT.md (VPS setup), KUBERNETES.md (Helm chart setup), MANUAL_QA.md (test checklist)
 ├── .github/workflows/             ci.yml (tests), docker-publish.yml (build + push images)
 ├── package.json                   Root scripts: install:all, test:unit, test:e2e, test:load
 └── README.md

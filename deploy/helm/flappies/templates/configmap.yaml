@@ -1,0 +1,51 @@
+{{- $scheme := ternary "https" "http" .Values.global.tlsEnabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "flappies.fullname" . }}-config
+  labels:
+    {{- include "flappies.labels" . | nindent 4 }}
+data:
+  # --- API runtime config ---
+  NODE_ENV: "production"
+  PORT: {{ .Values.api.port | quote }}
+  CORS_ORIGIN: "{{ $scheme }}://{{ .Values.global.frontendHost }}"
+  FRONTEND_URL: "{{ $scheme }}://{{ .Values.global.frontendHost }}"
+  COOKIE_SECURE: {{ .Values.api.cookieSecure | quote }}
+  TRUST_PROXY: {{ .Values.api.trustProxy | quote }}
+  LOG_LEVEL: {{ .Values.api.logLevel | quote }}
+  TENANT_ID: {{ .Values.global.tenantId | quote }}
+
+  # --- App Postgres connection (password comes from the Secret) ---
+  PGHOST: {{ include "flappies.fullname" . }}-postgres-app
+  PGPORT: "5432"
+  PGUSER: flappies
+  PGDATABASE: flappies
+  POSTGRES_DB: flappies
+  POSTGRES_USER: flappies
+
+  # --- Central ZITADEL (shared company infrastructure, not deployed by this
+  # chart — see global.zitadelUrl and docs/KUBERNETES.md) ---
+  ZITADEL_URL: {{ .Values.global.zitadelUrl | quote }}
+  ZITADEL_REDIRECT_URI: "{{ $scheme }}://{{ .Values.global.frontendHost }}/callback"
+
+  # --- Observability (optional, see values.yaml `observability:`) ---
+  PROMETHEUS_PUSHGATEWAY_URL: {{ .Values.observability.metrics.pushgatewayUrl | quote }}
+  PROMETHEUS_PUSH_INTERVAL_MS: {{ .Values.observability.metrics.pushIntervalMs | quote }}
+  LOKI_URL: {{ .Values.observability.logging.lokiUrl | quote }}
+
+  # --- Support / feature-request form SMTP (optional, see `support:`) ---
+  SMTP_HOST: {{ .Values.support.smtp.host | quote }}
+  SMTP_PORT: {{ .Values.support.smtp.port | quote }}
+  SMTP_SECURE: {{ .Values.support.smtp.secure | quote }}
+  SMTP_FROM: {{ .Values.support.smtp.from | quote }}
+  SUPPORT_EMAIL_TO: {{ .Values.support.emailTo | quote }}
+
+  # --- Frontend build-time URLs, for reference only ---
+  # Next.js inlines NEXT_PUBLIC_* variables at BUILD time (see docs/KUBERNETES.md);
+  # changing these here does not affect an already-built frontend image.
+  NEXT_PUBLIC_API_URL: "{{ $scheme }}://{{ .Values.global.apiHost }}"
+  NEXT_PUBLIC_ZITADEL_URL: {{ .Values.global.zitadelUrl | quote }}
+  NEXT_PUBLIC_ZITADEL_CLIENT_ID: {{ .Values.secrets.zitadelClientId | quote }}
+  NEXT_PUBLIC_ZITADEL_REDIRECT_URI: "{{ $scheme }}://{{ .Values.global.frontendHost }}/callback"
+  NEXT_PUBLIC_ZITADEL_LOGOUT_URI: "{{ $scheme }}://{{ .Values.global.frontendHost }}/"

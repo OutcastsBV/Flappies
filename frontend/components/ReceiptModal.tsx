@@ -50,6 +50,18 @@ export default function ReceiptModal({
             <span>Total</span>
             <span>€{receipt.total_amount.toFixed(2)}</span>
           </div>
+          {receipt.amount_tendered != null && (
+            <div className="flex justify-between text-gray-600">
+              <span>Tendered</span>
+              <span>€{receipt.amount_tendered.toFixed(2)}</span>
+            </div>
+          )}
+          {receipt.change_due != null && receipt.change_due > 0 && (
+            <div className="flex justify-between text-gray-600">
+              <span>Change due</span>
+              <span>€{receipt.change_due.toFixed(2)}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 pt-2 print:hidden">

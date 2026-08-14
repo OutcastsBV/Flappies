@@ -13,7 +13,6 @@ const {
   setAccessTokenCookie,
   clearAccessTokenCookie,
 } = require("../lib/cookies");
-const { consumeRfidCode } = require("../lib/rfidCodes");
 const { loginWithPassword } = require("../services/zitadel.service");
 const { findUserByOidcSub } = require("../services/user.service");
 
@@ -112,22 +111,6 @@ router.post("/auth/callback", async (req, res) => {
   }
 });
 
-router.post("/auth/rfid-exchange", async (req, res) => {
-  const { code } = req.body;
-
-  if (!code || typeof code !== "string") {
-    return res.status(400).json({ error: "Missing RFID code" });
-  }
-
-  const entry = consumeRfidCode(code);
-  if (!entry) {
-    return res.status(401).json({ error: "Invalid or expired RFID code" });
-  }
-
-  setAccessTokenCookie(res, entry.accessToken, entry.expiresIn, env);
-  res.json({ ok: true, expires_in: entry.expiresIn });
-});
-
 router.post("/auth/logout", (req, res) => {
   clearAccessTokenCookie(res, env);
   res.json({ ok: true });
@@ -138,6 +121,7 @@ router.get("/me", authenticate, requireUser, (req, res) => {
     id: req.user.id,
     username: req.user.username,
     email: req.auth.email,
+    role: req.user.role,
     groups: getRoles(req.auth),
   });
 });

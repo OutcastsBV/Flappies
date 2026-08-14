@@ -49,4 +49,5 @@ module.exports = {
   servicePat:
     process.env.ZITADEL_SERVICE_PAT || process.env.ZITADEL_IMPERSONATOR_PAT,
   orgId: process.env.ZITADEL_ORG_ID || "",
+  projectId: process.env.ZITADEL_PROJECT_ID || "",
 };

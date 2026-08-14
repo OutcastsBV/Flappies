@@ -5,6 +5,7 @@ const requireRole = require("../middleware/requireRole");
 const { hasRole } = require("../services/auth.helpers");
 const { getTransactions, getTransactionById } = require("../services/transaction.service");
 const { getReceipt } = require("../services/receipt.service");
+const { getCorrectionsForTransaction } = require("../services/correction.service");
 
 const router = express.Router();
 
@@ -13,6 +14,12 @@ function parseFilters(query) {
     from: query.from || null,
     to: query.to || null,
     user_id: query.user_id ? Number(query.user_id) : null,
+    happy_hour:
+      query.happy_hour === "true"
+        ? true
+        : query.happy_hour === "false"
+          ? false
+          : null,
   };
 }
 
@@ -26,7 +33,7 @@ router.get("/mine", authenticate, requireUser, async (req, res) => {
 });
 
 // GET /transactions
-router.get("/", authenticate, requireRole("admin"), requireUser, async (req, res) => {
+router.get("/", authenticate, requireRole(["admin", "manager"]), requireUser, async (req, res) => {
   const transactions = await getTransactions(parseFilters(req.query));
   res.json(transactions);
 });
@@ -36,7 +43,7 @@ router.get("/:id/receipt", authenticate, requireUser, async (req, res) => {
   try {
     const receipt = await getReceipt(req.params.id, {
       userId: req.user.id,
-      isAdmin: hasRole(req.auth, "admin"),
+      isAdmin: hasRole(req.auth, "admin") || hasRole(req.auth, "manager"),
     });
 
     if (!receipt) {
@@ -60,12 +67,19 @@ router.get("/:id", authenticate, requireUser, async (req, res) => {
     return res.status(404).json({ error: "Transaction not found" });
   }
 
-  const isAdmin = hasRole(req.auth, "admin");
-  if (!isAdmin && transaction.user_id !== req.user.id) {
+  const canViewAny = hasRole(req.auth, "admin") || hasRole(req.auth, "manager");
+  if (!canViewAny && transaction.user_id !== req.user.id) {
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  res.json(transaction);
+  const corrections = await getCorrectionsForTransaction(transaction.id);
+  const totalCorrections = corrections.reduce((sum, c) => sum + Number(c.amount), 0);
+
+  res.json({
+    ...transaction,
+    corrections,
+    net_total: Number((transaction.total_amount - totalCorrections).toFixed(2)),
+  });
 });
 
 module.exports = router;

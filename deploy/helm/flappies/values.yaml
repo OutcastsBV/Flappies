@@ -1,0 +1,151 @@
+# Default values for the flappies chart.
+# Copy this file (or use --set-file / a separate values-production.yaml) and
+# override anything under `secrets:` before deploying to a real cluster —
+# see docs/KUBERNETES.md for the full walkthrough.
+#
+# This chart deploys ONLY the Flappies application stack for one tenant:
+# Postgres (app data), API, and frontend. It connects OUT to shared company
+# infrastructure (a central ZITADEL, and optionally Prometheus/Loki/SMTP) —
+# it does not run any of those itself. See docs/KUBERNETES.md for the
+# two-tier architecture and docs/DEPLOYMENT.md for the support boundary.
+
+global:
+  # Public hostnames used to build ingress rules and baked-in frontend URLs.
+  # These MUST match what you use when building the frontend image (URLs are
+  # compiled in at build time, same as the Docker Compose deployment).
+  frontendHost: flappies.example.com
+  apiHost: api.flappies.example.com
+  # Set to true once you've pointed an Ingress controller + cert-manager (or
+  # equivalent) at the cluster and want HTTPS everywhere.
+  tlsEnabled: false
+  tlsSecretName: flappies-tls
+  ingressClassName: nginx
+  # Full base URL of the CENTRAL/shared ZITADEL instance (company
+  # infrastructure, not deployed by this chart). This tenant only needs its
+  # own Organization + Project + OAuth app inside that instance — see
+  # deploy/scripts/provision-tenant-zitadel.sh.
+  zitadelUrl: https://auth.company.example.com
+  # Unique per-tenant id, attached as a label to every metric/log line so a
+  # shared/master Prometheus + Loki can tell tenants apart.
+  tenantId: change-me-tenant-slug
+
+imagePullSecrets: []
+# - name: ghcr-pull-secret
+
+ingress:
+  enabled: true
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+
+images:
+  api:
+    repository: ghcr.io/outcastsbv/flappies-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: ghcr.io/outcastsbv/flappies-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  postgres:
+    repository: postgres
+    tag: 16-alpine
+    pullPolicy: IfNotPresent
+
+# --- API (Express) ---
+api:
+  replicaCount: 1
+  port: 3001
+  logLevel: info
+  cookieSecure: true
+  trustProxy: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# --- Frontend (Next.js) ---
+frontend:
+  replicaCount: 1
+  port: 3002
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# --- Application PostgreSQL (users, products, transactions) ---
+postgresApp:
+  storage: 2Gi
+  storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# --- Observability: optional. Point these at YOUR OWN Prometheus Pushgateway
+# / Loki instance (the master/shared one, or anything else) — Flappies only
+# supports the connection between this app and those services, not the
+# services themselves. Leave blank to disable an integration entirely. ---
+observability:
+  metrics:
+    pushgatewayUrl: ""
+    pushIntervalMs: 15000
+  logging:
+    lokiUrl: ""
+
+# --- Support / feature-request form (admin panel button). Any SMTP-capable
+# provider works (Microsoft 365, Gmail, Postmark, ...); swapping providers is
+# just a config change. Leave smtp.host blank to disable the form (it will
+# return a clear "not configured" error instead of failing silently). ---
+support:
+  smtp:
+    host: ""
+    port: 587
+    secure: false
+    from: ""
+  emailTo: support@flappies.shop
+
+# All secret values below are placeholders. Override them per-environment,
+# e.g.:
+#   helm upgrade --install flappies ./deploy/helm/flappies \
+#     -f my-secrets.yaml
+# or generate the Secret out-of-band and set secrets.existingSecret instead
+# (recommended for anything beyond a quick test).
+secrets:
+  # Name of a pre-existing Kubernetes Secret with the same keys as rendered
+  # by templates/secrets.yaml. When set, the chart will not render its own
+  # Secret and will reference this one instead.
+  existingSecret: ""
+
+  postgresPassword: "change-me-strong-db-password"
+
+  # --- Central ZITADEL application credentials for THIS tenant (from
+  # deploy/scripts/provision-tenant-zitadel.sh or the equivalent manual
+  # steps in docs/KUBERNETES.md) ---
+  zitadelOrgId: ""
+  zitadelClientId: "flappies"
+  zitadelClientSecret: "change-me-client-secret"
+  zitadelAudience: "flappies"
+  zitadelProjectId: "change-me-project-id"
+  zitadelImpersonatorPat: "change-me-impersonator-pat"
+  zitadelImpersonatorClientId: "change-me-service-user-client-id"
+  zitadelImpersonatorClientSecret: "change-me-service-user-client-secret"
+
+  # 32-byte key used to encrypt payment method API keys (Stripe/SumUp) at rest.
+  configEncryptionKey: "change-me-32-byte-encryption-key"
+
+  # Optional — leave blank to disable. See observability/support above.
+  smtpUser: ""
+  smtpPassword: ""
+  lokiUsername: ""
+  lokiPassword: ""
+  # Bearer token required to read the local GET /metrics endpoint.
+  metricsToken: ""

@@ -17,10 +17,19 @@ on:
         description: Public frontend port
         required: true
         default: "3002"
-      zitadel_port:
-        description: Public ZITADEL port
+      zitadel_url:
+        description: >-
+          Base URL of the ZITADEL instance this build should authenticate
+          against. Local/dev builds self-host ZITADEL alongside the app
+          (e.g. http://10.61.2.101:8080); production tenant builds point at
+          the shared central ZITADEL (e.g. https://auth.company.example.com)
+          provisioned via deploy/scripts/provision-tenant-zitadel.sh.
         required: true
-        default: "8080"
+        default: "http://10.61.2.101:8080"
+      zitadel_client_id:
+        description: OIDC client ID for this tenant's ZITADEL application (from provision-tenant-zitadel.sh)
+        required: true
+        default: "flappies"
 
 concurrency:
   group: docker-publish-${{ github.ref }}
@@ -48,11 +57,13 @@ jobs:
           HOST="${{ github.event.inputs.public_host || '10.61.2.101' }}"
           API_PORT="${{ github.event.inputs.api_port || '3001' }}"
           FE_PORT="${{ github.event.inputs.frontend_port || '3002' }}"
-          Z_PORT="${{ github.event.inputs.zitadel_port || '8080' }}"
+          Z_URL="${{ github.event.inputs.zitadel_url || 'http://10.61.2.101:8080' }}"
+          Z_CLIENT_ID="${{ github.event.inputs.zitadel_client_id || 'flappies' }}"
           echo "host=$HOST" >> "$GITHUB_OUTPUT"
           echo "api_url=http://${HOST}:${API_PORT}" >> "$GITHUB_OUTPUT"
           echo "frontend_url=http://${HOST}:${FE_PORT}" >> "$GITHUB_OUTPUT"
-          echo "zitadel_url=http://${HOST}:${Z_PORT}" >> "$GITHUB_OUTPUT"
+          echo "zitadel_url=$Z_URL" >> "$GITHUB_OUTPUT"
+          echo "zitadel_client_id=$Z_CLIENT_ID" >> "$GITHUB_OUTPUT"
           echo "redirect_uri=http://${HOST}:${FE_PORT}/callback" >> "$GITHUB_OUTPUT"
           echo "logout_uri=http://${HOST}:${FE_PORT}/" >> "$GITHUB_OUTPUT"
 
@@ -84,7 +95,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.urls.outputs.api_url }}
             NEXT_PUBLIC_ZITADEL_URL=${{ steps.urls.outputs.zitadel_url }}
-            NEXT_PUBLIC_ZITADEL_CLIENT_ID=flappies
+            NEXT_PUBLIC_ZITADEL_CLIENT_ID=${{ steps.urls.outputs.zitadel_client_id }}
             NEXT_PUBLIC_ZITADEL_REDIRECT_URI=${{ steps.urls.outputs.redirect_uri }}
             NEXT_PUBLIC_ZITADEL_LOGOUT_URI=${{ steps.urls.outputs.logout_uri }}
 

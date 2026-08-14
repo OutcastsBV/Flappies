@@ -33,30 +33,28 @@ router.post("/", authenticate, requireUser, async (req, res) => {
 // POST /cart/checkout — atomic order + transaction
 router.post("/checkout", authenticate, requireUser, async (req, res) => {
   try {
-    const { payment_method = "WALLET" } = req.body;
-    const result = await checkout(req.user.id, payment_method);
+    const {
+      payment_method: paymentMethod,
+      amount_tendered: amountTendered,
+      payment_reference: paymentReference,
+    } = req.body || {};
+
+    if (!paymentMethod || typeof paymentMethod !== "string") {
+      return res.status(400).json({ error: "payment_method is required" });
+    }
+
+    const result = await checkout(req.user.id, paymentMethod, {
+      amountTendered,
+      paymentReference,
+    });
 
     res.json({
       message: "Order placed successfully",
       ...result,
     });
   } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// POST /cart/order — kept for backwards compatibility, delegates to checkout
-router.post("/order", authenticate, requireUser, async (req, res) => {
-  try {
-    const result = await checkout(req.user.id, "WALLET");
-
-    res.json({
-      message: "Order placed successfully",
-      total: result.total,
-      transaction_id: result.transaction_id,
-    });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    const status = err.status || 400;
+    res.status(status).json({ error: err.message });
   }
 });
 

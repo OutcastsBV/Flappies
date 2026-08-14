@@ -1,4 +1,9 @@
 # Production compose: pull pre-built images from GHCR (no local build).
+# Deploys ONLY the Flappies application stack (Postgres, API, frontend). It
+# connects OUT to shared company infrastructure — a central ZITADEL for
+# identity, and optionally Prometheus/Loki/SMTP for observability/support —
+# rather than self-hosting any of that. See docs/DEPLOYMENT.md.
+#
 # Usage on the VPS (from the repo root):
 #   cp deploy/.env.production.example deploy/.env   # edit secrets
 #   docker login ghcr.io
@@ -24,58 +29,6 @@ services:
       retries: 20
     networks: [flappies]
 
-  postgres_zitadel:
-    image: postgres:16-alpine
-    container_name: flappies_postgres_zitadel
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: zitadel
-      POSTGRES_USER: zitadel
-      POSTGRES_PASSWORD: ${ZITADEL_DB_PASSWORD:?Set ZITADEL_DB_PASSWORD in .env}
-    volumes:
-      - postgres_zitadel_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zitadel -d zitadel"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    networks: [flappies]
-
-  zitadel:
-    image: ghcr.io/zitadel/zitadel:latest
-    container_name: flappies_zitadel
-    restart: unless-stopped
-    command: start-from-init --masterkey "${ZITADEL_MASTERKEY:?Set ZITADEL_MASTERKEY (32 chars)}" --tlsMode disabled
-    depends_on:
-      postgres_zitadel:
-        condition: service_healthy
-    environment:
-      ZITADEL_DATABASE_POSTGRES_HOST: postgres_zitadel
-      ZITADEL_DATABASE_POSTGRES_PORT: 5432
-      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
-      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
-      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_DB_PASSWORD}
-      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: zitadel
-      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${ZITADEL_DB_PASSWORD}
-      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:?Set ZITADEL_EXTERNALDOMAIN to your public IP or domain}
-      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
-      ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
-      ZITADEL_FIRSTINSTANCE_ORG_NAME: ${ZITADEL_ORG_NAME:-Flappies}
-      ZITADEL_FIRSTINSTANCE_ORG_DOMAIN: ${ZITADEL_EXTERNALDOMAIN}
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USER:-admin}
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?Set ZITADEL_ADMIN_PASSWORD in .env}
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: ${ZITADEL_ADMIN_EMAIL:-admin@localhost}
-      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_VERIFIED: "true"
-      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "false"
-      ZITADEL_TLS_ENABLED: "false"
-    ports:
-      - "${ZITADEL_EXTERNALPORT:-8080}:8080"
-    # `zitadel ready` defaults to HTTPS and reports unhealthy when tlsMode is disabled.
-    # The API waits for the container to start, not this health flag (see deploy-pull.sh).
-    healthcheck:
-      disable: true
-    networks: [flappies]
-
   api:
     image: ghcr.io/outcastsbv/flappies-api:${FLAPPIES_IMAGE_TAG:-latest}
     pull_policy: always
@@ -84,8 +37,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      zitadel:
-        condition: service_started
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -93,31 +44,37 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       TRUST_PROXY: ${TRUST_PROXY:-true}
+      # Central ZITADEL (shared company infrastructure, not started by this file)
       ZITADEL_URL: ${ZITADEL_URL:?Set ZITADEL_URL in .env}
-      ZITADEL_INTERNAL_URL: http://zitadel:8080
-      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:?Set ZITADEL_EXTERNALDOMAIN in .env}
-      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
-      ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
       ZITADEL_CLIENT_ID: ${ZITADEL_CLIENT_ID:?Set ZITADEL_CLIENT_ID}
       ZITADEL_CLIENT_SECRET: ${ZITADEL_CLIENT_SECRET:?Set ZITADEL_CLIENT_SECRET}
       ZITADEL_REDIRECT_URI: ${ZITADEL_REDIRECT_URI:?Set ZITADEL_REDIRECT_URI in .env}
       ZITADEL_AUDIENCE: ${ZITADEL_AUDIENCE:-flappies}
+      ZITADEL_PROJECT_ID: ${ZITADEL_PROJECT_ID:?Set ZITADEL_PROJECT_ID}
       ZITADEL_IMPERSONATOR_PAT: ${ZITADEL_IMPERSONATOR_PAT:?Set ZITADEL_IMPERSONATOR_PAT}
       ZITADEL_IMPERSONATOR_CLIENT_ID: ${ZITADEL_IMPERSONATOR_CLIENT_ID:?Set ZITADEL_IMPERSONATOR_CLIENT_ID}
       ZITADEL_IMPERSONATOR_CLIENT_SECRET: ${ZITADEL_IMPERSONATOR_CLIENT_SECRET:?Set ZITADEL_IMPERSONATOR_CLIENT_SECRET}
       ZITADEL_SERVICE_PAT: ${ZITADEL_SERVICE_PAT:-}
       ZITADEL_ORG_ID: ${ZITADEL_ORG_ID:-}
-      RFID_WS_SECRET: ${RFID_WS_SECRET:?Set RFID_WS_SECRET}
-      OPERATION_MODE: ${OPERATION_MODE:-self_service}
+      CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?Set CONFIG_ENCRYPTION_KEY}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      TOP_UP_EPC_QR_ENABLED: ${TOP_UP_EPC_QR_ENABLED:-false}
-      TOP_UP_STRIPE_ENABLED: ${TOP_UP_STRIPE_ENABLED:-false}
-      EPC_QR_IBAN: ${EPC_QR_IBAN:-}
-      EPC_QR_BENEFICIARY_NAME: ${EPC_QR_BENEFICIARY_NAME:-}
-      EPC_QR_BIC: ${EPC_QR_BIC:-}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL in .env}
+      # Observability — optional, see deploy/.env.production.example.
+      TENANT_ID: ${TENANT_ID:-default}
+      PROMETHEUS_PUSHGATEWAY_URL: ${PROMETHEUS_PUSHGATEWAY_URL:-}
+      PROMETHEUS_PUSH_INTERVAL_MS: ${PROMETHEUS_PUSH_INTERVAL_MS:-15000}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      LOKI_URL: ${LOKI_URL:-}
+      LOKI_USERNAME: ${LOKI_USERNAME:-}
+      LOKI_PASSWORD: ${LOKI_PASSWORD:-}
+      # Support / feature-request form — optional, see deploy/.env.production.example.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SUPPORT_EMAIL_TO: ${SUPPORT_EMAIL_TO:-support@flappies.shop}
     ports:
       - "${API_PORT:-3001}:3001"
     healthcheck:
@@ -145,4 +102,3 @@ networks:
 
 volumes:
   postgres_data:
-  postgres_zitadel_data:

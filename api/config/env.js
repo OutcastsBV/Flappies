@@ -21,8 +21,9 @@ function loadEnv() {
     required("ZITADEL_REDIRECT_URI");
     required("ZITADEL_AUDIENCE");
     required("ZITADEL_IMPERSONATOR_PAT");
-    required("RFID_WS_SECRET");
+    required("ZITADEL_PROJECT_ID");
     required("CORS_ORIGIN");
+    required("CONFIG_ENCRYPTION_KEY");
   }
 
   return {
@@ -34,7 +35,8 @@ function loadEnv() {
       process.env.COOKIE_SECURE === "true" ||
       (isProduction && process.env.COOKIE_SECURE !== "false"),
     trustProxy: process.env.TRUST_PROXY === "true" || isProduction,
-    rfidWsSecret: process.env.RFID_WS_SECRET || "dev-rfid-secret-change-me",
+    configEncryptionKey:
+      process.env.CONFIG_ENCRYPTION_KEY || "dev-config-encryption-key-32bytes!",
     databaseUrl: process.env.DATABASE_URL,
     pg: {
       user: process.env.PGUSER || "flappies",
@@ -43,6 +45,15 @@ function loadEnv() {
       port: Number(process.env.PGPORT || 5432),
       database: process.env.PGDATABASE || "flappies",
     },
+    // Observability — all optional, each integration is a no-op if its URL
+    // isn't set (see api/lib/metrics.js, api/lib/logger.js,
+    // api/services/support.service.js for the actual usage).
+    tenantId: process.env.TENANT_ID || "default",
+    prometheusPushgatewayUrl: process.env.PROMETHEUS_PUSHGATEWAY_URL || null,
+    lokiUrl: process.env.LOKI_URL || null,
+    smtpConfigured: Boolean(
+      process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD
+    ),
   };
 }
 

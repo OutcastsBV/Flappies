@@ -12,9 +12,16 @@ if (files.length === 0) {
   process.exit(1);
 }
 
-const result = spawnSync(process.execPath, ["--test", ...files], {
-  stdio: "inherit",
-  cwd: path.join(__dirname, ".."),
-});
+// Force serial execution: e2e/http tests each reset the shared test database
+// schema in their own `before` hook, so running them concurrently races and
+// corrupts each other's schema state.
+const result = spawnSync(
+  process.execPath,
+  ["--test", "--test-concurrency=1", ...files],
+  {
+    stdio: "inherit",
+    cwd: path.join(__dirname, ".."),
+  }
+);
 
 process.exit(result.status ?? 1);

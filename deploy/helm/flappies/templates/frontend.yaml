@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "flappies.fullname" . }}-frontend
+  labels:
+    {{- include "flappies.labels" . | nindent 4 }}
+    {{- include "flappies.selectorLabels" (dict "component" "frontend" "Release" .Release) | nindent 4 }}
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "flappies.selectorLabels" (dict "component" "frontend" "Release" .Release) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "flappies.selectorLabels" (dict "component" "frontend" "Release" .Release) | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: frontend
+          image: "{{ .Values.images.frontend.repository }}:{{ .Values.images.frontend.tag }}"
+          imagePullPolicy: {{ .Values.images.frontend.pullPolicy }}
+          # NEXT_PUBLIC_* values are already compiled into this image at build
+          # time (see frontend/Dockerfile); env vars here only affect the
+          # Node server process itself, not the client bundle.
+          ports:
+            - containerPort: {{ .Values.frontend.port }}
+              name: http
+          env:
+            - name: PORT
+              value: {{ .Values.frontend.port | quote }}
+            - name: HOSTNAME
+              value: "0.0.0.0"
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: {{ .Values.frontend.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: {{ .Values.frontend.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "flappies.fullname" . }}-frontend
+  labels:
+    {{- include "flappies.labels" . | nindent 4 }}
+    {{- include "flappies.selectorLabels" (dict "component" "frontend" "Release" .Release) | nindent 4 }}
+spec:
+  selector:
+    {{- include "flappies.selectorLabels" (dict "component" "frontend" "Release" .Release) | nindent 4 }}
+  ports:
+    - port: {{ .Values.frontend.port }}
+      targetPort: {{ .Values.frontend.port }}
+      name: http

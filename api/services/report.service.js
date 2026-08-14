@@ -29,15 +29,44 @@ async function getSalesSummary(from, to) {
     SELECT
       COUNT(*)::int AS transaction_count,
       COALESCE(SUM(total_amount), 0)::float AS total_revenue,
-      COALESCE(SUM(total_amount) FILTER (WHERE payment_method = 'WALLET'), 0)::float AS wallet_revenue,
-      COALESCE(SUM(total_amount) FILTER (WHERE payment_method = 'CARD'), 0)::float AS card_revenue
+      COALESCE(SUM(total_amount) FILTER (WHERE payment_method = 'CASH'), 0)::float AS cash_revenue,
+      COALESCE(SUM(total_amount) FILTER (WHERE payment_method != 'CASH'), 0)::float AS other_revenue
     FROM "transaction"
     ${where}
     `,
     values
   );
 
-  return result.rows[0];
+  const correctionsConditions = [];
+  const correctionsValues = [];
+  let j = 1;
+
+  if (fromDate) {
+    correctionsConditions.push(`created_at >= $${j++}`);
+    correctionsValues.push(fromDate);
+  }
+  if (toDate) {
+    correctionsConditions.push(`created_at <= $${j++}`);
+    correctionsValues.push(toDate);
+  }
+
+  const correctionsWhere = correctionsConditions.length
+    ? `WHERE ${correctionsConditions.join(" AND ")}`
+    : "";
+
+  const correctionsResult = await pool.query(
+    `SELECT COALESCE(SUM(amount), 0)::float AS total_corrections FROM correction ${correctionsWhere}`,
+    correctionsValues
+  );
+
+  const summary = result.rows[0];
+  const totalCorrections = correctionsResult.rows[0].total_corrections;
+
+  return {
+    ...summary,
+    total_corrections: totalCorrections,
+    net_revenue: Number((summary.total_revenue - totalCorrections).toFixed(2)),
+  };
 }
 
 async function getSalesByProduct(from, to) {
@@ -111,6 +140,40 @@ async function getSalesByDay(from, to) {
   return result.rows;
 }
 
+async function getSalesByPaymentMethod(from, to) {
+  const { from: fromDate, to: toDate } = parseDateRange(from, to);
+  const conditions = [];
+  const values = [];
+  let i = 1;
+
+  if (fromDate) {
+    conditions.push(`timestamp >= $${i++}`);
+    values.push(fromDate);
+  }
+  if (toDate) {
+    conditions.push(`timestamp <= $${i++}`);
+    values.push(toDate);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const result = await pool.query(
+    `
+    SELECT
+      payment_method,
+      COUNT(*)::int AS transaction_count,
+      COALESCE(SUM(total_amount), 0)::float AS revenue
+    FROM "transaction"
+    ${where}
+    GROUP BY payment_method
+    ORDER BY revenue DESC
+    `,
+    values
+  );
+
+  return result.rows;
+}
+
 async function getPnLReport(from, to) {
   const { from: fromDate, to: toDate } = parseDateRange(from, to);
   const conditions = [];
@@ -164,5 +227,6 @@ module.exports = {
   getSalesSummary,
   getSalesByProduct,
   getSalesByDay,
+  getSalesByPaymentMethod,
   getPnLReport,
 };

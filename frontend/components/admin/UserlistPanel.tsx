@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { getUsers } from '../../lib/api';
-import type { User } from '../../lib/types';
+import type { Role, User } from '../../lib/types';
 import UserModal from './UserModal';
 import CreateUserModal from './CreateUserModal';
 
-export default function UserlistPanel() {
+export default function UserlistPanel({
+  currentUserRole,
+}: {
+  currentUserRole: Role;
+}) {
   const [users, setUsers] = useState<User[]>([]);
   const [editing, setEditing] = useState<User | null>(null);
   const [creating, setCreating] = useState(false);
@@ -29,6 +33,9 @@ export default function UserlistPanel() {
     };
   }, []);
 
+  const canEdit = (user: User) =>
+    currentUserRole === 'admin' || user.role === 'cashier';
+
   return (
     <>
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -45,7 +52,7 @@ export default function UserlistPanel() {
         <thead>
           <tr className="border-b">
             <th className="p-3 text-left">Username</th>
-            <th className="p-3 text-left">Balance</th>
+            <th className="p-3 text-left">Role</th>
             <th className="p-3 text-left">Email</th>
             <th className="p-3 text-left">Active</th>
             <th className="p-3"></th>
@@ -55,16 +62,18 @@ export default function UserlistPanel() {
           {users.map((user) => (
             <tr key={user.id} className="border-b">
               <td className="p-3">{user.username}</td>
-              <td className="p-3">€{user.balance.toFixed(2)}</td>
+              <td className="p-3 capitalize">{user.role}</td>
               <td className="p-3">{user.email}</td>
               <td className="p-3">{user.is_active ? 'Yes' : 'No'}</td>
               <td className="p-3">
-                <button
-                  onClick={() => setEditing(user)}
-                  className="text-blue-600"
-                >
-                  Edit
-                </button>
+                {canEdit(user) && (
+                  <button
+                    onClick={() => setEditing(user)}
+                    className="text-blue-600"
+                  >
+                    Edit
+                  </button>
+                )}
               </td>
             </tr>
           ))}
@@ -74,6 +83,7 @@ export default function UserlistPanel() {
       {editing && (
         <UserModal
           user={editing}
+          currentUserRole={currentUserRole}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
@@ -84,6 +94,7 @@ export default function UserlistPanel() {
 
       {creating && (
         <CreateUserModal
+          currentUserRole={currentUserRole}
           onClose={() => setCreating(false)}
           onSaved={() => {
             setCreating(false);

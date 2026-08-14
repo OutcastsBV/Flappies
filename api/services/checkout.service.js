@@ -1,28 +1,34 @@
 const pool = require("../db");
-const appConfig = require("../config/app");
-const { getConfig, applyHappyHourPrice } = require("./config.service");
+const { getConfig, applyHappyHourPrice, isHappyHourActive } = require("./config.service");
+const { listEnabled } = require("./paymentMethod.service");
+const { getOpenRegisterForUser } = require("./register.service");
 const { processPayment } = require("../payments");
 const {
   createTransaction,
   addItemToTransaction,
 } = require("./transaction.service");
+const metrics = require("../lib/metrics");
 
-function getAllowedPaymentMethods() {
-  return appConfig.paymentMethods[appConfig.operationMode] || ["WALLET"];
-}
-
-function assertPaymentMethod(method) {
-  const allowed = getAllowedPaymentMethods();
-  if (!allowed.includes(method)) {
-    throw new Error(`Payment method '${method}' is not allowed in ${appConfig.operationMode} mode`);
+async function assertPaymentMethod(method) {
+  const enabled = await listEnabled();
+  if (!enabled.some((m) => m.method_key === method)) {
+    throw new Error(`Payment method '${method}' is not enabled`);
   }
 }
 
 /**
- * Atomic checkout: validate payment, update stock, deduct balance, record transaction.
+ * Atomic checkout: validate payment method + register session, update
+ * stock, record the transaction (and its cash/reference details).
  */
-async function checkout(userId, paymentMethod = "WALLET") {
-  assertPaymentMethod(paymentMethod);
+async function checkout(userId, paymentMethod, { amountTendered, paymentReference } = {}) {
+  await assertPaymentMethod(paymentMethod);
+
+  const registerSession = await getOpenRegisterForUser(userId);
+  if (!registerSession) {
+    const err = new Error("Register is not open. Open the register before taking payments.");
+    err.status = 400;
+    throw err;
+  }
 
   const client = await pool.connect();
 
@@ -51,6 +57,7 @@ async function checkout(userId, paymentMethod = "WALLET") {
     }
 
     const config = await getConfig();
+    const happyHourActive = isHappyHourActive(config);
 
     const lineItems = cartResult.rows.map((item) => ({
       product_id: item.item_id,
@@ -70,7 +77,10 @@ async function checkout(userId, paymentMethod = "WALLET") {
       }
     }
 
-    await processPayment(paymentMethod, client, userId, total);
+    const { changeDue } = processPayment(paymentMethod, total, {
+      amountTendered,
+      paymentReference,
+    });
 
     for (const item of cartResult.rows) {
       await client.query(
@@ -83,6 +93,10 @@ async function checkout(userId, paymentMethod = "WALLET") {
       total_amount: total,
       user_id: userId,
       payment_method: paymentMethod,
+      register_session_id: registerSession.id,
+      amount_tendered: paymentMethod === "CASH" ? amountTendered : null,
+      payment_reference: paymentMethod === "CASH" ? null : paymentReference || null,
+      happy_hour_active: happyHourActive,
     });
 
     for (const item of lineItems) {
@@ -97,10 +111,17 @@ async function checkout(userId, paymentMethod = "WALLET") {
 
     await client.query("COMMIT");
 
+    metrics.transactionsTotal.inc({ payment_method: paymentMethod });
+    metrics.transactionRevenueTotal.inc({ payment_method: paymentMethod }, total);
+    for (const item of lineItems) {
+      metrics.itemUnitsSoldTotal.inc({ product_name: item.name }, item.quantity);
+    }
+
     return {
       transaction_id: transaction.id,
       total,
       payment_method: paymentMethod,
+      change_due: changeDue,
       timestamp: transaction.timestamp,
       items: lineItems,
     };
@@ -114,5 +135,5 @@ async function checkout(userId, paymentMethod = "WALLET") {
 
 module.exports = {
   checkout,
-  getAllowedPaymentMethods,
+  assertPaymentMethod,
 };

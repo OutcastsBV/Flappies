@@ -1,6 +1,7 @@
 const authConfig = require("../config/auth");
 const { COOKIE_NAME } = require("../lib/cookies");
 const logger = require("../lib/logger");
+const metrics = require("../lib/metrics");
 
 let jose;
 let jwks;
@@ -16,12 +17,36 @@ async function getJwks() {
   if (!jwks) {
     const { createRemoteJWKSet } = await loadJose();
     const jwksUrl = new URL(`${authConfig.internalBase}/oauth/v2/keys`);
-    const options = authConfig.publicHost
-      ? { headers: authConfig.internalHostHeader() }
-      : undefined;
-    jwks = createRemoteJWKSet(jwksUrl, options);
+    jwks = createRemoteJWKSet(jwksUrl, {
+      // A hung ZITADEL must fail fast rather than hang every login/request;
+      // cooldown avoids hammering it with retries once it's known to be down.
+      timeoutDuration: 5_000,
+      cooldownDuration: 30_000,
+      ...(authConfig.publicHost ? { headers: authConfig.internalHostHeader() } : {}),
+    });
   }
   return jwks;
+}
+
+// Network/availability failures reaching ZITADEL's JWKS endpoint should
+// surface as 503 (retry-able, not the caller's fault) rather than 401
+// ("Invalid token"), which would wrongly tell a cashier to log in again
+// when the real problem is an outage on our end.
+const JWKS_UNAVAILABLE_CODES = new Set([
+  "ERR_JWKS_TIMEOUT",
+  "ERR_JWKS_INVALID",
+]);
+
+function isAuthServiceUnavailable(err) {
+  if (JWKS_UNAVAILABLE_CODES.has(err?.code)) {
+    return true;
+  }
+  // Raw network errors from the underlying fetch (DNS, connection refused,
+  // reset, etc.) surface as TypeError/AggregateError, not a jose error.
+  if (err instanceof TypeError || err?.name === "AggregateError") {
+    return true;
+  }
+  return false;
 }
 
 function authenticateWithTestToken(req, res, next) {
@@ -85,6 +110,14 @@ async function authenticate(req, res, next) {
     req.auth = payload;
     next();
   } catch (err) {
+    if (isAuthServiceUnavailable(err)) {
+      logger.error(
+        { err: err.message, code: err.code },
+        "Authentication service (ZITADEL JWKS) unreachable"
+      );
+      metrics.appErrorsTotal.inc({ type: "zitadel_unavailable" });
+      return res.status(503).json({ error: "Authentication service temporarily unavailable" });
+    }
     logger.warn({ err: err.message }, "JWT verify failed");
     return res.status(401).json({ error: "Invalid token" });
   }

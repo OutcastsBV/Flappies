@@ -1,26 +1,45 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { Role } from '../../lib/types';
+import SupportModal from './SupportModal';
+
+export type AdminTab =
+  | 'products'
+  | 'transactions'
+  | 'users'
+  | 'registers'
+  | 'config'
+  | 'reports'
+  | 'audit';
 
 export default function AdminLayout({
   active,
   onChange,
+  currentUserRole,
   children,
 }: {
-  active: 'products' | 'transactions' | 'users' | 'config' | 'reports';
-  onChange: (
-    tab: 'products' | 'transactions' | 'users' | 'config' | 'reports'
-  ) => void;
+  active: AdminTab;
+  onChange: (tab: AdminTab) => void;
+  currentUserRole: Role;
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const [showSupport, setShowSupport] = useState(false);
 
-  const tabs = [
-    { id: 'products' as const, label: 'Products' },
-    { id: 'transactions' as const, label: 'Transactions' },
-    { id: 'users' as const, label: 'Users' },
-    { id: 'reports' as const, label: 'Reports' },
-    { id: 'config' as const, label: 'Config' },
+  const tabs: { id: AdminTab; label: string }[] = [
+    { id: 'products', label: 'Products' },
+    { id: 'transactions', label: 'Transactions' },
+    { id: 'registers', label: 'Registers' },
+    { id: 'users', label: 'Users' },
+    { id: 'reports', label: 'Reports' },
+    // Only admins can view/change payment method and happy-hour config.
+    ...(currentUserRole === 'admin'
+      ? [{ id: 'config' as const, label: 'Config' }]
+      : []),
+    // Read-only history — visible to both admins and managers.
+    { id: 'audit', label: 'Audit' },
   ];
 
   return (
@@ -33,7 +52,7 @@ export default function AdminLayout({
             onClick={() => router.push('/dashboard')}
             className="text-sm text-gray-600 hover:text-black"
           >
-            ← Back to shop
+            ← Back to register
           </button>
         </div>
 
@@ -48,9 +67,21 @@ export default function AdminLayout({
             {tab.label}
           </button>
         ))}
+
+        <div className="pt-4 border-t">
+          <button
+            type="button"
+            onClick={() => setShowSupport(true)}
+            className="w-full text-left px-3 py-2 rounded text-gray-700 hover:bg-gray-100"
+          >
+            Support / feature request
+          </button>
+        </div>
       </aside>
 
       <main className="flex-1 p-8">{children}</main>
+
+      {showSupport && <SupportModal onClose={() => setShowSupport(false)} />}
     </div>
   );
 }

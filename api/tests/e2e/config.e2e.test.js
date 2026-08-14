@@ -16,30 +16,53 @@ describe("config e2e", () => {
     fixtures = await seedTestData();
   });
 
-  it("returns shop info for authenticated users", async () => {
+  it("returns happy-hour status only for authenticated staff", async () => {
     const res = await request(app)
       .get("/config/shop")
-      .set(testAuthHeaders(fixtures.userSub));
+      .set(testAuthHeaders(fixtures.cashierSub));
 
     assert.equal(res.status, 200);
-    assert.equal(res.body.operation_mode, "self_service");
-    assert.deepEqual(res.body.payment_methods, ["WALLET"]);
+    assert.deepEqual(res.body, { happy_hour_active: false });
   });
 
-  it("forbids config updates for non-admin users", async () => {
-    const res = await request(app)
+  it("forbids cashiers from reading or updating config", async () => {
+    const cashierAuth = testAuthHeaders(fixtures.cashierSub);
+
+    const getRes = await request(app).get("/config").set(cashierAuth);
+    assert.equal(getRes.status, 403);
+
+    const putRes = await request(app)
       .put("/config")
-      .set(testAuthHeaders(fixtures.userSub))
-      .send({ operation_mode: "pos" });
-
-    assert.equal(res.status, 403);
+      .set(cashierAuth)
+      .send({ happy_hour_days: [1] });
+    assert.equal(putRes.status, 403);
   });
 
-  it("allows admin to read and update config", async () => {
+  it("forbids managers from reading or updating config (admin-only)", async () => {
+    const managerAuth = testAuthHeaders(fixtures.managerSub, {
+      roles: ["manager"],
+    });
+
+    const getRes = await request(app).get("/config").set(managerAuth);
+    assert.equal(getRes.status, 403);
+
+    const putRes = await request(app)
+      .put("/config")
+      .set(managerAuth)
+      .send({ happy_hour_days: [1] });
+    assert.equal(putRes.status, 403);
+  });
+
+  it("allows admin to read and update happy-hour config", async () => {
     const adminAuth = testAuthHeaders(fixtures.adminSub, { roles: ["admin"] });
 
     const getRes = await request(app).get("/config").set(adminAuth);
     assert.equal(getRes.status, 200);
+    assert.deepEqual(getRes.body, {
+      happy_hour_days: [],
+      happy_hour_start_time: null,
+      happy_hour_end_time: null,
+    });
 
     const updateRes = await request(app)
       .put("/config")
@@ -54,5 +77,31 @@ describe("config e2e", () => {
     assert.deepEqual(updateRes.body.happy_hour_days, [1, 2, 3, 4, 5]);
     assert.equal(updateRes.body.happy_hour_start_time, "16:00");
     assert.equal(updateRes.body.happy_hour_end_time, "18:00");
+  });
+
+  it("validates happy-hour fields", async () => {
+    const adminAuth = testAuthHeaders(fixtures.adminSub, { roles: ["admin"] });
+
+    const badDays = await request(app)
+      .put("/config")
+      .set(adminAuth)
+      .send({ happy_hour_days: [7] });
+    assert.equal(badDays.status, 400);
+
+    const badTime = await request(app)
+      .put("/config")
+      .set(adminAuth)
+      .send({ happy_hour_start_time: "25:00" });
+    assert.equal(badTime.status, 400);
+
+    const sameTimes = await request(app)
+      .put("/config")
+      .set(adminAuth)
+      .send({
+        happy_hour_days: [1],
+        happy_hour_start_time: "10:00",
+        happy_hour_end_time: "10:00",
+      });
+    assert.equal(sameTimes.status, 400);
   });
 });

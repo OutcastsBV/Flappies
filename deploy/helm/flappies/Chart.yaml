@@ -1,0 +1,13 @@
+apiVersion: v2
+name: flappies
+description: Per-tenant cash register app stack — Next.js frontend, Express API, PostgreSQL. Connects to a shared/central ZITADEL for auth (not deployed by this chart).
+type: application
+version: 0.2.0
+appVersion: "latest"
+home: https://github.com/OutcastsBV/Flappies
+maintainers:
+  - name: Flappies maintainers
+keywords:
+  - pos
+  - cash-register
+  - multi-tenant

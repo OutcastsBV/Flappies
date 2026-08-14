@@ -76,3 +76,10 @@ export async function logout() {
 export function isAdmin(user: { groups?: string[] } | null) {
   return user?.groups?.includes('admin') ?? false;
 }
+
+export function isManagerOrAdmin(user: { groups?: string[] } | null) {
+  return (
+    (user?.groups?.includes('admin') || user?.groups?.includes('manager')) ??
+    false
+  );
+}

@@ -1,12 +1,20 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import ReceiptModal from '../../components/ReceiptModal';
-import TopUpButton from '../../components/TopUpButton';
-import TopUpModal from '../../components/TopUpModal';
+import ChargeModal from '../../components/ChargeModal';
+import CorrectionModal from '../../components/CorrectionModal';
+import Modal from '../../components/Modal';
+import HappyHourBadge from '../../components/HappyHourBadge';
 import type { User, Cart, Product, UserDetails } from '../../lib/api';
-import type { Receipt, ShopInfo, Transaction } from '../../lib/types';
+import type {
+  CurrentRegister,
+  EnabledPaymentMethod,
+  Receipt,
+  ShopInfo,
+  Transaction,
+} from '../../lib/types';
 import {
   createCartWithItem,
   getCart,
@@ -19,10 +27,12 @@ import {
   getReceipt,
   getMyTransactions,
   getShopInfo,
+  getCurrentRegister,
+  openRegister,
+  closeRegister,
+  getEnabledPaymentMethods,
 } from '../../lib/api';
-import { isAdmin, logout } from '../../lib/auth';
-import { motion } from 'framer-motion';
-import Modal from '../../components/Modal';
+import { isManagerOrAdmin, logout } from '../../lib/auth';
 
 export default function DashboardPage() {
   return (
@@ -40,27 +50,28 @@ export default function DashboardPage() {
 
 function DashboardContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [inventoryLoading, setInventoryLoading] = useState(true);
-  const [showTopUp, setShowTopUp] = useState(false);
-  const [showOrder, setShowOrder] = useState(false);
-  const [orderError, setOrderError] = useState('');
-  const [topUpNotice, setTopUpNotice] = useState('');
+  const [showCharge, setShowCharge] = useState(false);
+  const [showOpenRegister, setShowOpenRegister] = useState(false);
+  const [showCloseRegister, setShowCloseRegister] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
 
   const [user, setUser] = useState<User | null>(null);
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [cart, setCart] = useState<Cart>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
+  const [register, setRegister] = useState<CurrentRegister>(null);
+  const [paymentMethods, setPaymentMethods] = useState<EnabledPaymentMethod[]>([]);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [myTransactions, setMyTransactions] = useState<Transaction[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [correctionTarget, setCorrectionTarget] = useState<Transaction | null>(null);
 
-  async function refreshUserData() {
-    setUser(await getMe());
-    setUserDetails(await getMyDetails());
+  async function refreshRegister() {
+    setRegister(await getCurrentRegister());
   }
 
   useEffect(() => {
@@ -72,17 +83,22 @@ function DashboardContent() {
         const meDetailed = await getMyDetails();
         setUserDetails(meDetailed);
 
-        const [cartData, inventory, info, history] = await Promise.all([
-          getCart(),
-          getInventory(),
-          getShopInfo(),
-          getMyTransactions(),
-        ]);
+        const [cartData, inventory, info, history, currentRegister, methods] =
+          await Promise.all([
+            getCart(),
+            getInventory(),
+            getShopInfo(),
+            getMyTransactions(),
+            getCurrentRegister(),
+            getEnabledPaymentMethods(),
+          ]);
 
         setCart(cartData);
         setProducts(inventory);
         setShopInfo(info);
         setMyTransactions(history);
+        setRegister(currentRegister);
+        setPaymentMethods(methods);
       } catch {
         router.push('/login');
       } finally {
@@ -93,20 +109,6 @@ function DashboardContent() {
 
     init();
   }, [router]);
-
-  useEffect(() => {
-    const topupStatus = searchParams.get('topup');
-    if (!topupStatus) return;
-
-    if (topupStatus === 'success') {
-      setTopUpNotice('Payment received. Your balance will update shortly.');
-      refreshUserData().catch(() => undefined);
-    } else if (topupStatus === 'cancelled') {
-      setTopUpNotice('Card payment was cancelled.');
-    }
-
-    router.replace('/dashboard');
-  }, [searchParams, router]);
 
   function getQuantity(productId: number) {
     const item = cart.find((i) => i.item_id === productId);
@@ -147,28 +149,47 @@ function DashboardContent() {
     setCart(await getCart());
   }
 
-  async function handleOrder() {
-    setOrderError('');
-    try {
-      const result = await checkout('WALLET');
-      const receiptData = await getReceipt(result.transaction_id);
+  async function handleCharge(
+    method: string,
+    details: { amountTendered?: number; paymentReference?: string }
+  ) {
+    const result = await checkout(method, details);
+    const receiptData = await getReceipt(result.transaction_id);
 
-      setCart([]);
-      setProducts(await getInventory());
-      setMyTransactions(await getMyTransactions());
+    setCart([]);
+    setProducts(await getInventory());
+    setMyTransactions(await getMyTransactions());
+    await refreshRegister();
 
-      await refreshUserData();
-
-      setShowOrder(false);
-      setReceipt(receiptData);
-    } catch (err) {
-      setOrderError(err instanceof Error ? err.message : 'Order failed');
-    }
+    setShowCharge(false);
+    setReceipt(receiptData);
   }
 
   async function viewReceipt(id: number) {
     const data = await getReceipt(id);
     setReceipt(data);
+  }
+
+  async function handleOpenRegister(startingAmount: number) {
+    setCheckoutError('');
+    try {
+      await openRegister(startingAmount);
+      await refreshRegister();
+      setShowOpenRegister(false);
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : 'Failed to open register');
+    }
+  }
+
+  async function handleCloseRegister(countedCashAmount: number, notes: string) {
+    setCheckoutError('');
+    try {
+      await closeRegister(countedCashAmount, notes);
+      await refreshRegister();
+      setShowCloseRegister(false);
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : 'Failed to close register');
+    }
   }
 
   if (loading) {
@@ -182,83 +203,22 @@ function DashboardContent() {
   if (!user || !userDetails) return null;
 
   const total = cart.reduce((sum, i) => sum + i.price * i.amount, 0);
-  const insufficientBalance = total > (userDetails?.balance ?? 0);
-  const topUpEnabled = shopInfo?.top_up_enabled ?? false;
-  const topUpMethods = shopInfo?.top_up_methods ?? [];
-
-  function OrderModal({
-    onClose,
-    onConfirm,
-  }: {
-    onClose: () => void;
-    onConfirm: () => void;
-  }) {
-    return (
-      <Modal title="Confirm order" onClose={onClose}>
-        {orderError && (
-          <p className="text-sm text-red-600 mb-3">{orderError}</p>
-        )}
-        <p className="text-sm text-gray-600 mb-4">
-          Total: €{total.toFixed(2)} — paid from your wallet balance.
-        </p>
-        <button
-          onClick={onConfirm}
-          className="w-full bg-black text-white py-2 rounded-md"
-        >
-          Place order
-        </button>
-      </Modal>
-    );
-  }
+  const registerOpen = register !== null;
 
   return (
     <main className="min-h-screen bg-gray-100 p-8 text-gray-900">
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-semibold">Self-service shop</h1>
+            <h1 className="text-3xl font-semibold">Register</h1>
             {shopInfo?.happy_hour_active && (
               <p className="text-sm text-green-700 font-medium mt-1">
                 Happy hour — all prices 50% off!
               </p>
             )}
           </div>
-          <button onClick={logout} className="text-gray-700 hover:text-black">
-            Logout
-          </button>
-        </div>
-
-        {topUpNotice && (
-          <p className="bg-blue-50 text-blue-800 border border-blue-100 rounded-lg px-4 py-3 text-sm">
-            {topUpNotice}
-          </p>
-        )}
-
-        <div className="bg-white p-6 rounded-xl shadow flex justify-between items-center">
-          <div>
-            <p className="text-lg font-semibold">{user.username}</p>
-            <p className="text-gray-700">
-              Balance: €{userDetails.balance.toFixed(2)}
-            </p>
-          </div>
-
-          <div className="flex gap-3">
-            <TopUpButton
-              enabled={topUpEnabled}
-              onClick={() => setShowTopUp(true)}
-              className="bg-black text-white px-4 py-2 rounded-md"
-            >
-              Top Up
-            </TopUpButton>
-
-            <button
-              onClick={() => setShowHistory(true)}
-              className="border px-4 py-2 rounded-md"
-            >
-              My purchases
-            </button>
-
-            {isAdmin(user) && (
+          <div className="flex gap-3 items-center">
+            {isManagerOrAdmin(user) && (
               <button
                 onClick={() => router.push('/admin')}
                 className="bg-black text-white px-4 py-2 rounded-md"
@@ -266,8 +226,66 @@ function DashboardContent() {
                 Admin
               </button>
             )}
+            <button onClick={logout} className="text-gray-700 hover:text-black">
+              Logout
+            </button>
           </div>
         </div>
+
+        <div className="bg-white p-6 rounded-xl shadow flex justify-between items-center flex-wrap gap-4">
+          <div>
+            <p className="text-lg font-semibold">{user.username}</p>
+            <p className="text-gray-700 capitalize">{userDetails.role}</p>
+          </div>
+
+          {registerOpen ? (
+            <div className="flex items-center gap-6 flex-wrap">
+              <div className="text-sm">
+                <p className="text-gray-600">Starting float</p>
+                <p className="font-medium">
+                  €{register!.summary.starting_amount.toFixed(2)}
+                </p>
+              </div>
+              <div className="text-sm">
+                <p className="text-gray-600">Cash sales</p>
+                <p className="font-medium">
+                  €{register!.summary.cash_sales.toFixed(2)}
+                </p>
+              </div>
+              <div className="text-sm">
+                <p className="text-gray-600">Expected cash</p>
+                <p className="font-medium">
+                  €{register!.summary.expected_cash.toFixed(2)}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowHistory(true)}
+                className="border px-4 py-2 rounded-md"
+              >
+                Recent sales
+              </button>
+              <button
+                onClick={() => setShowCloseRegister(true)}
+                className="border border-red-300 text-red-700 px-4 py-2 rounded-md"
+              >
+                Close register
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowOpenRegister(true)}
+              className="bg-black text-white px-4 py-2 rounded-md"
+            >
+              Open register
+            </button>
+          )}
+        </div>
+
+        {!registerOpen && (
+          <p className="bg-yellow-50 text-yellow-800 border border-yellow-100 rounded-lg px-4 py-3 text-sm">
+            Open the register with a starting cash amount before taking payments.
+          </p>
+        )}
 
         <div className="grid md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
@@ -281,9 +299,8 @@ function DashboardContent() {
                   const quantity = getQuantity(product.product_id);
 
                   return (
-                    <motion.div
+                    <div
                       key={product.product_id}
-                      whileTap={{ scale: 0.97 }}
                       className="bg-white p-4 rounded-lg shadow flex justify-between items-center"
                     >
                       <div>
@@ -298,10 +315,10 @@ function DashboardContent() {
 
                       {quantity === 0 ? (
                         <button
-                          disabled={product.current_stock === 0}
+                          disabled={product.current_stock === 0 || !registerOpen}
                           onClick={() => addToCart(product)}
                           className={`px-3 py-1 rounded-md ${
-                            product.current_stock === 0
+                            product.current_stock === 0 || !registerOpen
                               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                               : 'bg-black text-white'
                           }`}
@@ -332,7 +349,7 @@ function DashboardContent() {
                           </button>
                         </div>
                       )}
-                    </motion.div>
+                    </div>
                   );
                 })}
               </div>
@@ -343,7 +360,7 @@ function DashboardContent() {
             <h2 className="text-lg font-semibold mb-4">Cart</h2>
 
             {cart.length === 0 ? (
-              <p className="text-gray-700">Your cart is empty</p>
+              <p className="text-gray-700">Cart is empty</p>
             ) : (
               <>
                 <ul className="flex-1 space-y-2">
@@ -363,39 +380,25 @@ function DashboardContent() {
                     <span>€{total.toFixed(2)}</span>
                   </div>
 
-                  {insufficientBalance ? (
-                    <TopUpButton
-                      enabled={topUpEnabled}
-                      onClick={() => setShowTopUp(true)}
-                      className="w-full bg-yellow-500 text-black py-2 rounded-md"
-                    >
-                      Top up balance
-                    </TopUpButton>
-                  ) : (
-                    <button
-                      onClick={() => setShowOrder(true)}
-                      className="w-full bg-black text-white py-2 rounded-md"
-                    >
-                      Order
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setShowCharge(true)}
+                    disabled={!registerOpen}
+                    className="w-full bg-black text-white py-2 rounded-md disabled:opacity-50"
+                  >
+                    Charge
+                  </button>
                 </div>
               </>
             )}
           </div>
         </div>
 
-        {showTopUp && (
-          <TopUpModal
-            methods={topUpMethods}
-            onClose={() => setShowTopUp(false)}
-          />
-        )}
-
-        {showOrder && (
-          <OrderModal
-            onClose={() => setShowOrder(false)}
-            onConfirm={handleOrder}
+        {showCharge && (
+          <ChargeModal
+            total={total}
+            methods={paymentMethods}
+            onClose={() => setShowCharge(false)}
+            onConfirm={handleCharge}
           />
         )}
 
@@ -403,24 +406,52 @@ function DashboardContent() {
           <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
         )}
 
+        {showOpenRegister && (
+          <OpenRegisterModal
+            error={checkoutError}
+            onClose={() => setShowOpenRegister(false)}
+            onConfirm={handleOpenRegister}
+          />
+        )}
+
+        {showCloseRegister && register && (
+          <CloseRegisterModal
+            summary={register.summary}
+            error={checkoutError}
+            onClose={() => setShowCloseRegister(false)}
+            onConfirm={handleCloseRegister}
+          />
+        )}
+
         {showHistory && (
-          <Modal title="My purchases" onClose={() => setShowHistory(false)}>
+          <Modal title="Recent sales" onClose={() => setShowHistory(false)}>
             {myTransactions.length === 0 ? (
-              <p className="text-gray-600">No purchases yet.</p>
+              <p className="text-gray-600">No sales yet.</p>
             ) : (
               <ul className="space-y-2 max-h-80 overflow-y-auto">
                 {myTransactions.map((t) => (
                   <li
                     key={t.id}
-                    className="flex justify-between items-center p-2 hover:bg-gray-50 rounded cursor-pointer"
-                    onClick={() => viewReceipt(t.id)}
+                    className="flex justify-between items-center p-2 hover:bg-gray-50 rounded"
                   >
-                    <span>
+                    <span
+                      className="cursor-pointer flex items-center gap-2"
+                      onClick={() => viewReceipt(t.id)}
+                    >
                       #{t.id} —{' '}
                       {new Date(t.timestamp).toLocaleDateString()}
+                      <HappyHourBadge active={t.happy_hour_active} />
                     </span>
-                    <span className="font-medium">
-                      €{t.total_amount.toFixed(2)}
+                    <span className="flex items-center gap-3">
+                      <span className="font-medium">
+                        €{t.total_amount.toFixed(2)}
+                      </span>
+                      <button
+                        onClick={() => setCorrectionTarget(t)}
+                        className="text-xs text-blue-600"
+                      >
+                        Correct
+                      </button>
                     </span>
                   </li>
                 ))}
@@ -428,7 +459,142 @@ function DashboardContent() {
             )}
           </Modal>
         )}
+
+        {correctionTarget && (
+          <CorrectionModal
+            transactionId={correctionTarget.id}
+            maxAmount={correctionTarget.total_amount}
+            onClose={() => setCorrectionTarget(null)}
+            onSaved={() => {
+              setCorrectionTarget(null);
+              refreshRegister();
+            }}
+          />
+        )}
       </div>
     </main>
+  );
+}
+
+function OpenRegisterModal({
+  error,
+  onClose,
+  onConfirm,
+}: {
+  error: string;
+  onClose: () => void;
+  onConfirm: (startingAmount: number) => void;
+}) {
+  const [startingAmount, setStartingAmount] = useState('');
+
+  return (
+    <Modal title="Open register" onClose={onClose}>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Starting cash amount (€)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            className="border p-2 w-full rounded"
+            value={startingAmount}
+            onChange={(e) => setStartingAmount(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <button
+          onClick={() => onConfirm(Number(startingAmount))}
+          className="w-full bg-black text-white py-2 rounded-md"
+        >
+          Open register
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function CloseRegisterModal({
+  summary,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  summary: { starting_amount: number; cash_sales: number; expected_cash: number };
+  error: string;
+  onClose: () => void;
+  onConfirm: (countedCashAmount: number, notes: string) => void;
+}) {
+  const [countedCashAmount, setCountedCashAmount] = useState('');
+  const [notes, setNotes] = useState('');
+  const parsed = Number(countedCashAmount);
+  const variance = Number.isFinite(parsed) ? parsed - summary.expected_cash : null;
+
+  return (
+    <Modal title="Close register" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="text-sm space-y-1 bg-gray-50 rounded p-3">
+          <div className="flex justify-between">
+            <span>Starting float</span>
+            <span>€{summary.starting_amount.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Cash sales</span>
+            <span>€{summary.cash_sales.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between font-medium">
+            <span>Expected cash</span>
+            <span>€{summary.expected_cash.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Counted cash amount (€)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            className="border p-2 w-full rounded"
+            value={countedCashAmount}
+            onChange={(e) => setCountedCashAmount(e.target.value)}
+            autoFocus
+          />
+          {countedCashAmount && variance !== null && (
+            <p
+              className={`text-sm mt-1 ${
+                variance === 0 ? 'text-gray-600' : 'text-red-600'
+              }`}
+            >
+              Variance: €{variance.toFixed(2)}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Notes (optional)</label>
+          <textarea
+            className="border p-2 w-full rounded"
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <button
+          onClick={() => onConfirm(Number(countedCashAmount), notes)}
+          className="w-full bg-black text-white py-2 rounded-md"
+        >
+          Close register
+        </button>
+      </div>
+    </Modal>
   );
 }
