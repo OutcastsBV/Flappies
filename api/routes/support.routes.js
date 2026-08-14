@@ -12,8 +12,8 @@ const router = express.Router();
 router.post(
   "/",
   authenticate,
-  requireRole(["admin", "manager"]),
   requireUser,
+  requireRole(["admin", "manager"]),
   async (req, res) => {
     const { subject, message, category = "OTHER" } = req.body || {};
 

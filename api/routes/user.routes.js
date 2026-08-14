@@ -43,8 +43,8 @@ router.get("/me", authenticate, requireUser, async (req, res) => {
 router.get(
   "/",
   authenticate,
-  requireRole(["admin", "manager"]),
   requireUser,
+  requireRole(["admin", "manager"]),
   async (req, res) => {
     const users = await getAllUsers();
     res.json(users.map(toPublicUser));
@@ -54,8 +54,8 @@ router.get(
 router.post(
   "/",
   authenticate,
-  requireRole(["admin", "manager"]),
   requireUser,
+  requireRole(["admin", "manager"]),
   async (req, res) => {
     const {
       username,
@@ -150,8 +150,8 @@ router.post(
 router.get(
   "/:id",
   authenticate,
-  requireRole(["admin", "manager"]),
   requireUser,
+  requireRole(["admin", "manager"]),
   async (req, res) => {
     const userId = req.params.id;
     const user = await getUserById(userId);
@@ -165,8 +165,8 @@ router.get(
 router.put(
   "/:id",
   authenticate,
-  requireRole(["admin", "manager"]),
   requireUser,
+  requireRole(["admin", "manager"]),
   async (req, res) => {
     const { username, email, role, is_active } = req.body;
 

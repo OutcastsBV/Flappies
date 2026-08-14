@@ -1,1 +1,7 @@
 .env
+zitadel-pat/
+docker-compose.override.yml
+.provision-out.txt
+.seed-out.txt
+seed-admin.sql
+seed-staff.sql

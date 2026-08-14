@@ -21,8 +21,8 @@ router.get("/", authenticate, requireUser, async (req, res) => {
 router.get(
   "/admin",
   authenticate,
-  requireRole("admin"),
   requireUser,
+  requireRole("admin"),
   async (req, res) => {
     const methods = await listForAdmin();
     res.json(methods);
@@ -33,8 +33,8 @@ router.get(
 router.put(
   "/:key",
   authenticate,
-  requireRole("admin"),
   requireUser,
+  requireRole("admin"),
   async (req, res) => {
     const { enabled, config } = req.body || {};
 

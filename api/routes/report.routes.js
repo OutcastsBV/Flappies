@@ -15,8 +15,8 @@ const router = express.Router();
 router.get(
   "/sales",
   authenticate,
-  requireRole("admin"),
   requireUser,
+  requireRole("admin"),
   async (req, res) => {
     const summary = await getSalesSummary(req.query.from, req.query.to);
     res.json(summary);
@@ -26,8 +26,8 @@ router.get(
 router.get(
   "/sales/by-product",
   authenticate,
-  requireRole("admin"),
   requireUser,
+  requireRole("admin"),
   async (req, res) => {
     const data = await getSalesByProduct(req.query.from, req.query.to);
     res.json(data);
@@ -37,8 +37,8 @@ router.get(
 router.get(
   "/sales/by-day",
   authenticate,
-  requireRole("admin"),
   requireUser,
+  requireRole("admin"),
   async (req, res) => {
     const data = await getSalesByDay(req.query.from, req.query.to);
     res.json(data);
@@ -48,8 +48,8 @@ router.get(
 router.get(
   "/sales/by-payment-method",
   authenticate,
-  requireRole("admin"),
   requireUser,
+  requireRole("admin"),
   async (req, res) => {
     const data = await getSalesByPaymentMethod(req.query.from, req.query.to);
     res.json(data);
@@ -59,8 +59,8 @@ router.get(
 router.get(
   "/pnl",
   authenticate,
-  requireRole("admin"),
   requireUser,
+  requireRole("admin"),
   async (req, res) => {
     const data = await getPnLReport(req.query.from, req.query.to);
     res.json(data);

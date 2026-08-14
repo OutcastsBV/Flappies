@@ -18,12 +18,12 @@ router.get("/shop", authenticate, requireUser, async (req, res) => {
   });
 });
 
-router.get("/", authenticate, requireRole("admin"), requireUser, async (req, res) => {
+router.get("/", authenticate, requireUser, requireRole("admin"), async (req, res) => {
   const config = await getConfig();
   res.json(config);
 });
 
-router.put("/", authenticate, requireRole("admin"), requireUser, async (req, res) => {
+router.put("/", authenticate, requireUser, requireRole("admin"), async (req, res) => {
   const current = await getConfig();
   const {
     happy_hour_days = current.happy_hour_days,

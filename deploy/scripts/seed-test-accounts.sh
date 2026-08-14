@@ -51,6 +51,9 @@ APP_POSTGRES_DB="${APP_POSTGRES_DB:-flappies}"
 
 API="${ZITADEL_URL%/}"
 AUTH=(-H "Authorization: Bearer ${ZITADEL_PAT}" -H "Content-Type: application/json" -H "x-zitadel-orgid: ${ZITADEL_ORG_ID}")
+if [[ -n "${ZITADEL_HOST_HEADER:-}" ]]; then
+  AUTH+=(-H "Host: ${ZITADEL_HOST_HEADER}")
+fi
 
 call() {
   local method="$1" url="$2" body="${3:-}"
@@ -72,6 +75,10 @@ call() {
 
 run_sql() {
   local sql="$1"
+  if [[ "$DB_MODE" == "skip" ]]; then
+    echo "    (DB_MODE=skip — not writing to the app database)"
+    return 0
+  fi
   if [[ "$DB_MODE" == "docker" ]]; then
     docker exec -i "$APP_DB_CONTAINER" psql -U "$APP_POSTGRES_USER" -d "$APP_POSTGRES_DB" -v ON_ERROR_STOP=1 <<SQL
 $sql

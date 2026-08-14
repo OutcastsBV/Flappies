@@ -1,6 +1,6 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const { getRoles, hasRole } = require("../../services/auth.helpers");
+const { getRoles, hasRole, requestHasAnyRole } = require("../../services/auth.helpers");
 
 describe("auth.helpers", () => {
   it("returns Zitadel project roles when present", () => {
@@ -36,5 +36,11 @@ describe("auth.helpers", () => {
   it("returns empty roles when auth is missing", () => {
     assert.deepEqual(getRoles(null), []);
     assert.equal(hasRole(null, "admin"), false);
+  });
+
+  it("requestHasAnyRole uses the DB role when JWT project roles are missing", () => {
+    const req = { auth: {}, user: { role: "admin" } };
+    assert.equal(requestHasAnyRole(req, ["admin", "manager"]), true);
+    assert.equal(requestHasAnyRole({ auth: {}, user: { role: "cashier" } }, ["admin"]), false);
   });
 });

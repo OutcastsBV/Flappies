@@ -80,8 +80,8 @@ router.post("/close", authenticate, requireUser, async (req, res) => {
 router.get(
   "/sessions",
   authenticate,
-  requireRole(["admin", "manager"]),
   requireUser,
+  requireRole(["admin", "manager"]),
   async (req, res) => {
     const { from, to, user_id: userId } = req.query;
     const sessions = await listSessions({

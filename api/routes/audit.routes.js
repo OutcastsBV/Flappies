@@ -14,8 +14,8 @@ const router = express.Router();
 router.get(
   "/",
   authenticate,
-  requireRole(["admin", "manager"]),
   requireUser,
+  requireRole(["admin", "manager"]),
   async (req, res) => {
     const { action, entity_type: entityType, from, to, limit, offset } = req.query;
     const entries = await getAuditLog({
@@ -33,8 +33,8 @@ router.get(
 router.get(
   "/:id",
   authenticate,
-  requireRole(["admin", "manager"]),
   requireUser,
+  requireRole(["admin", "manager"]),
   async (req, res) => {
     const entry = await getAuditLogEntry(req.params.id);
     if (!entry) {

@@ -58,8 +58,8 @@ router.post("/", authenticate, requireUser, async (req, res) => {
 router.get(
   "/",
   authenticate,
-  requireRole(["admin", "manager"]),
   requireUser,
+  requireRole(["admin", "manager"]),
   async (req, res) => {
     const { from, to } = req.query;
     const corrections = await listCorrections({ from: from || null, to: to || null });

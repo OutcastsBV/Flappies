@@ -22,7 +22,7 @@ router.get("/", authenticate, requireUser, async (req, res) => {
 });
 
 // GET /inventory/admin
-router.get("/admin", authenticate, requireRole('admin'), requireUser, async (req, res) => {
+router.get("/admin", authenticate, requireUser, requireRole('admin'), async (req, res) => {
   const products = await getInventory();
   res.json(products);
 });
@@ -39,7 +39,7 @@ router.get("/:id", authenticate, requireUser, async (req, res) => {
 });
 
 // POST /inventory
-router.post("/", authenticate, requireRole('admin'), requireUser, async (req, res) => {
+router.post("/", authenticate, requireUser, requireRole('admin'), async (req, res) => {
   const { product_id, current_stock, reorder_level } = req.body;
 
   if (!product_id || current_stock == null || reorder_level == null) {
@@ -51,7 +51,7 @@ router.post("/", authenticate, requireRole('admin'), requireUser, async (req, re
 });
 
 // PUT /inventory/:id
-router.put("/:id", authenticate, requireRole('admin'), requireUser, async (req, res) => {
+router.put("/:id", authenticate, requireUser, requireRole('admin'), async (req, res) => {
     const inventory = await updateInventoryItem(
       req.params.id,
       req.body
@@ -69,7 +69,7 @@ router.put("/:id", authenticate, requireRole('admin'), requireUser, async (req, 
 
 
 // PUT /inventory/stock/:id
-router.put("/stock/:id", authenticate, requireRole('admin'), requireUser, async (req, res) => {
+router.put("/stock/:id", authenticate, requireUser, requireRole('admin'), async (req, res) => {
   const { stock } = req.body;
   const product = await restockInventoryItem(req.params.id, { stock });
 
@@ -81,7 +81,7 @@ router.put("/stock/:id", authenticate, requireRole('admin'), requireUser, async 
 });
 
 // DELETE /inventory/:id
-router.delete("/:id", authenticate, requireRole('admin'), requireUser, async (req, res) => {
+router.delete("/:id", authenticate, requireUser, requireRole('admin'), async (req, res) => {
   const product = await deleteInventoryItem(req.params.id);
 
   if (!product) {

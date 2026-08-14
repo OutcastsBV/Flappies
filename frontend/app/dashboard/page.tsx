@@ -220,13 +220,18 @@ function DashboardContent() {
           <div className="flex gap-3 items-center">
             {isManagerOrAdmin(user) && (
               <button
+                type="button"
                 onClick={() => router.push('/admin')}
                 className="bg-black text-white px-4 py-2 rounded-md"
               >
-                Admin
+                Admin panel
               </button>
             )}
-            <button onClick={logout} className="text-gray-700 hover:text-black">
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="text-gray-700 hover:text-black"
+            >
               Logout
             </button>
           </div>

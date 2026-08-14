@@ -60,26 +60,21 @@ export async function logoutLocal() {
   window.location.href = '/login';
 }
 
+/** Clear the app session and return to the app login page (no ZITADEL UI). */
 export async function logout() {
-  clearSession();
-  try {
-    await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-  } catch {
-    // continue to IdP logout even if cookie clear fails
-  }
-  window.location.href = getLogoutUrl();
+  await logoutLocal();
 }
 
-export function isAdmin(user: { groups?: string[] } | null) {
-  return user?.groups?.includes('admin') ?? false;
+type RoleUser = { groups?: string[]; role?: string } | null;
+
+function hasGroupOrRole(user: RoleUser, value: string) {
+  return user?.role === value || user?.groups?.includes(value) || false;
 }
 
-export function isManagerOrAdmin(user: { groups?: string[] } | null) {
-  return (
-    (user?.groups?.includes('admin') || user?.groups?.includes('manager')) ??
-    false
-  );
+export function isAdmin(user: RoleUser) {
+  return hasGroupOrRole(user, 'admin');
+}
+
+export function isManagerOrAdmin(user: RoleUser) {
+  return hasGroupOrRole(user, 'admin') || hasGroupOrRole(user, 'manager');
 }

@@ -314,6 +314,7 @@ async function zitadelTokenForUser(zitadelUserId) {
     subject_token_type: "urn:zitadel:params:oauth:token-type:user_id",
     actor_token: actorToken,
     actor_token_type: "urn:ietf:params:oauth:token-type:access_token",
+    requested_token_type: "urn:ietf:params:oauth:token-type:jwt",
     scope: "openid profile email urn:zitadel:iam:org:project:roles",
   });
 
@@ -347,11 +348,26 @@ async function zitadelTokenForUser(zitadelUserId) {
   }
 
   const token = await res.json();
+  const jwt = pickJwt(token.access_token, token.id_token);
+  if (!jwt) {
+    const err = new Error("ZITADEL did not return a JWT access token or id_token");
+    err.status = 503;
+    err.details = `issued_token_type=${token.issued_token_type || ""}`;
+    throw err;
+  }
 
   return {
-    access_token: token.access_token,
+    access_token: jwt,
     expires_in: token.expires_in,
   };
+}
+
+function isJwt(value) {
+  return typeof value === "string" && value.split(".").length === 3;
+}
+
+function pickJwt(...candidates) {
+  return candidates.find(isJwt) || null;
 }
 
 /**

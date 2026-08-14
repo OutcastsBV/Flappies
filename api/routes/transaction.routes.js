@@ -2,7 +2,7 @@ const express = require("express");
 const authenticate = require("../middleware/authenticate");
 const requireUser = require("../middleware/requireUser");
 const requireRole = require("../middleware/requireRole");
-const { hasRole } = require("../services/auth.helpers");
+const { requestHasAnyRole } = require("../services/auth.helpers");
 const { getTransactions, getTransactionById } = require("../services/transaction.service");
 const { getReceipt } = require("../services/receipt.service");
 const { getCorrectionsForTransaction } = require("../services/correction.service");
@@ -33,7 +33,7 @@ router.get("/mine", authenticate, requireUser, async (req, res) => {
 });
 
 // GET /transactions
-router.get("/", authenticate, requireRole(["admin", "manager"]), requireUser, async (req, res) => {
+router.get("/", authenticate, requireUser, requireRole(["admin", "manager"]), async (req, res) => {
   const transactions = await getTransactions(parseFilters(req.query));
   res.json(transactions);
 });
@@ -43,7 +43,7 @@ router.get("/:id/receipt", authenticate, requireUser, async (req, res) => {
   try {
     const receipt = await getReceipt(req.params.id, {
       userId: req.user.id,
-      isAdmin: hasRole(req.auth, "admin") || hasRole(req.auth, "manager"),
+      isAdmin: requestHasAnyRole(req, ["admin", "manager"]),
     });
 
     if (!receipt) {
@@ -67,7 +67,7 @@ router.get("/:id", authenticate, requireUser, async (req, res) => {
     return res.status(404).json({ error: "Transaction not found" });
   }
 
-  const canViewAny = hasRole(req.auth, "admin") || hasRole(req.auth, "manager");
+  const canViewAny = requestHasAnyRole(req, ["admin", "manager"]);
   if (!canViewAny && transaction.user_id !== req.user.id) {
     return res.status(403).json({ error: "Forbidden" });
   }

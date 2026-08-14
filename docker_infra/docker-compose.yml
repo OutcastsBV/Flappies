@@ -108,6 +108,7 @@ services:
       - .env
     image: ghcr.io/zitadel/zitadel:latest
     container_name: zitadel
+    user: "0"
     command:
       - start-from-init
       - --masterkey
@@ -136,8 +137,18 @@ services:
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD:-Admin123!}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS:-admin@localhost}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_VERIFIED: "true"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
+
+      # Local-only: write an instance-admin PAT on first boot so we can provision
+      # a tenant without clicking through the console.
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_USERNAME: zitadel-admin-sa
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_MACHINE_NAME: Admin
+      ZITADEL_FIRSTINSTANCE_ORG_MACHINE_PAT_EXPIRATIONDATE: "2099-01-01T00:00:00Z"
+      ZITADEL_FIRSTINSTANCE_PATPATH: /pat/admin.pat
 
       ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "false"
+    volumes:
+      - ./zitadel-pat:/pat
     ports:
       - "${ZITADEL_HOST_PORT:-8080}:8080"
     networks: [appnet]

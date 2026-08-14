@@ -47,6 +47,9 @@ TENANT_ADMIN_USERNAME="${TENANT_ADMIN_USERNAME:-$TENANT_ADMIN_EMAIL}"
 
 API="${ZITADEL_URL%/}"
 AUTH=(-H "Authorization: Bearer ${ZITADEL_IAM_PAT}" -H "Content-Type: application/json")
+if [[ -n "${ZITADEL_HOST_HEADER:-}" ]]; then
+  AUTH+=(-H "Host: ${ZITADEL_HOST_HEADER}")
+fi
 
 call() {
   local method="$1" url="$2" body="${3:-}"
@@ -72,6 +75,9 @@ ORG_ID=$(jq -r '.organizationId' <<<"$ORG_RESPONSE")
 echo "    Organization ID: ${ORG_ID}"
 
 ORG_AUTH=(-H "Authorization: Bearer ${ZITADEL_IAM_PAT}" -H "Content-Type: application/json" -H "x-zitadel-orgid: ${ORG_ID}")
+if [[ -n "${ZITADEL_HOST_HEADER:-}" ]]; then
+  ORG_AUTH+=(-H "Host: ${ZITADEL_HOST_HEADER}")
+fi
 call_org() {
   local method="$1" url="$2" body="${3:-}"
   local response status
@@ -127,7 +133,7 @@ CLIENT_SECRET=$(jq -r '.clientSecret' <<<"$APP_RESPONSE")
 echo "    Client ID: ${CLIENT_ID}"
 
 echo "==> Creating service (machine) user for impersonation..."
-MACHINE_RESPONSE=$(call_org POST "${API}/management/v1/users/machine" "$(jq -n --arg name "flappies-service" \
+MACHINE_RESPONSE=$(call_org POST "${API}/management/v1/users/machine" "$(jq -n --arg name "flappies-service-${TENANT_SLUG}" \
   '{userName: $name, name: $name, description: "Flappies API service account", accessTokenType: "ACCESS_TOKEN_TYPE_JWT"}')")
 MACHINE_ID=$(jq -r '.userId' <<<"$MACHINE_RESPONSE")
 echo "    Machine user ID: ${MACHINE_ID}"
@@ -141,13 +147,29 @@ echo "==> Generating machine user PAT (for Session/Management API calls)..."
 PAT_RESPONSE=$(call_org POST "${API}/management/v1/users/${MACHINE_ID}/pats" '{}')
 IMPERSONATOR_PAT=$(jq -r '.token' <<<"$PAT_RESPONSE")
 
-echo "==> Granting IAM_LOGIN_CLIENT (instance-level) to the service user..."
-call POST "${API}/admin/v1/members" "$(jq -n --arg id "$MACHINE_ID" '{userId: $id, roles: ["IAM_LOGIN_CLIENT"]}')" >/dev/null || \
-  echo "    WARNING: could not grant IAM_LOGIN_CLIENT automatically — grant it manually (Console → Instance → Members)." >&2
+echo "==> Enabling impersonation on the instance..."
+imp_resp=$(curl -sS -w '\n%{http_code}' -X PUT "${AUTH[@]}" "${API}/admin/v1/policies/security" \
+  -d '{"enableImpersonation": true}')
+imp_status=$(tail -n1 <<<"$imp_resp")
+if [[ "$imp_status" -ge 400 ]]; then
+  echo "    WARNING: could not enable impersonation automatically (HTTP $imp_status) — enable it in Console → Instance → Security Settings." >&2
+fi
 
-echo "==> Granting ORG_USER_IMPERSONATOR (org-level) to the service user..."
-call_org POST "${API}/management/v1/orgs/me/members" "$(jq -n --arg id "$MACHINE_ID" '{userId: $id, roles: ["ORG_USER_IMPERSONATOR"]}')" >/dev/null || \
-  echo "    WARNING: could not grant ORG_USER_IMPERSONATOR automatically — grant it manually (Console → Org → Members)." >&2
+echo "==> Granting IAM_LOGIN_CLIENT (instance-level) to the service user..."
+login_resp=$(curl -sS -w '\n%{http_code}' -X POST "${AUTH[@]}" "${API}/admin/v1/members" \
+  -d "$(jq -n --arg id "$MACHINE_ID" '{userId: $id, roles: ["IAM_LOGIN_CLIENT"]}')")
+login_status=$(tail -n1 <<<"$login_resp")
+if [[ "$login_status" -ge 400 ]]; then
+  echo "    WARNING: could not grant IAM_LOGIN_CLIENT automatically (HTTP $login_status) — grant it manually (Console → Instance → Members)." >&2
+fi
+
+echo "==> Granting ORG_END_USER_IMPERSONATOR (org-level) to the service user..."
+member_body=$(jq -n --arg id "$MACHINE_ID" '{userId: $id, roles: ["ORG_END_USER_IMPERSONATOR"]}')
+member_resp=$(curl -sS -w '\n%{http_code}' -X POST "${ORG_AUTH[@]}" "${API}/management/v1/orgs/me/members" -d "$member_body")
+member_status=$(tail -n1 <<<"$member_resp")
+if [[ "$member_status" -ge 400 ]]; then
+  echo "    WARNING: could not grant ORG_END_USER_IMPERSONATOR automatically (HTTP $member_status) — grant it manually (Console → Org → Members)." >&2
+fi
 
 echo "==> Creating tenant admin user '${TENANT_ADMIN_USERNAME}'..."
 ADMIN_RESPONSE=$(call_org POST "${API}/v2/users/human" "$(jq -n \

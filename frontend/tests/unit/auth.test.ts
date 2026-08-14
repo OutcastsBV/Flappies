@@ -25,10 +25,21 @@ describe('auth helpers', () => {
     expect(isAdmin(null)).toBe(false);
   });
 
+  it('detects admin users from the app DB role when JWT groups are missing', () => {
+    expect(isAdmin({ role: 'admin' })).toBe(true);
+    expect(isAdmin({ role: 'manager' })).toBe(false);
+  });
+
   it('detects admins and managers, but not cashiers, via isManagerOrAdmin', () => {
     expect(isManagerOrAdmin({ groups: ['admin'] })).toBe(true);
     expect(isManagerOrAdmin({ groups: ['manager'] })).toBe(true);
     expect(isManagerOrAdmin({ groups: ['cashier'] })).toBe(false);
     expect(isManagerOrAdmin(null)).toBe(false);
+  });
+
+  it('uses the app DB role for manager/admin access when JWT groups are missing', () => {
+    expect(isManagerOrAdmin({ role: 'admin' })).toBe(true);
+    expect(isManagerOrAdmin({ role: 'manager' })).toBe(true);
+    expect(isManagerOrAdmin({ role: 'cashier' })).toBe(false);
   });
 });

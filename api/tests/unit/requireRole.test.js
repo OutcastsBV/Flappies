@@ -77,4 +77,30 @@ describe("middleware/requireRole", () => {
     assert.equal(nextCalled, false);
     assert.equal(getResult().statusCode, 403);
   });
+
+  it("allows access from the app DB role when JWT project roles are missing", () => {
+    const { req, res, getResult } = makeReqRes({});
+    req.user = { role: "manager" };
+    let nextCalled = false;
+
+    requireRole(["admin", "manager"])(req, res, () => {
+      nextCalled = true;
+    });
+
+    assert.equal(nextCalled, true);
+    assert.equal(getResult().statusCode, undefined);
+  });
+
+  it("rejects a DB role that is not in the allowed list", () => {
+    const { req, res, getResult } = makeReqRes({});
+    req.user = { role: "cashier" };
+    let nextCalled = false;
+
+    requireRole(["admin", "manager"])(req, res, () => {
+      nextCalled = true;
+    });
+
+    assert.equal(nextCalled, false);
+    assert.equal(getResult().statusCode, 403);
+  });
 });

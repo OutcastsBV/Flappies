@@ -83,13 +83,13 @@ describe('loginWithPassword / logout flows', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('logout clears the session and redirects to the ZITADEL end-session URL', async () => {
+  it('logout clears the session and redirects to the app login page', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal('fetch', fetchMock);
     const location = { href: '' };
     vi.stubGlobal('location', location);
 
-    const { logout, getLogoutUrl } = await import('../../lib/auth');
+    const { logout } = await import('../../lib/auth');
     const { recordSession, getSessionExpiresAt } = await import(
       '../../lib/session'
     );
@@ -98,6 +98,10 @@ describe('loginWithPassword / logout flows', () => {
     await logout();
 
     expect(getSessionExpiresAt()).toBeNull();
-    expect(location.href).toBe(getLogoutUrl());
+    expect(location.href).toBe('/login');
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/auth/logout'),
+      expect.objectContaining({ method: 'POST' })
+    );
   });
 });

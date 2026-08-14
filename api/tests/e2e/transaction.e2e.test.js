@@ -181,6 +181,16 @@ describe("transaction e2e", () => {
     assert.equal(res.status, 403);
   });
 
+  it("allows an admin to view another cashier's transaction using the DB role", async () => {
+    const dbRoleOnlyAdmin = testAuthHeaders(fixtures.adminSub, { roles: [] });
+    const res = await request(app)
+      .get(`/transactions/${transactionId}`)
+      .set(dbRoleOnlyAdmin);
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.id, transactionId);
+  });
+
   it("returns 404 for an unknown transaction id", async () => {
     const res = await request(app).get("/transactions/999999").set(cashierAuth);
     assert.equal(res.status, 404);
@@ -203,6 +213,16 @@ describe("transaction e2e", () => {
     const res = await request(app)
       .get(`/transactions/${transactionId}/receipt`)
       .set(adminAuth);
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.id, transactionId);
+  });
+
+  it("allows an admin to view another cashier's receipt using the DB role", async () => {
+    const dbRoleOnlyAdmin = testAuthHeaders(fixtures.adminSub, { roles: [] });
+    const res = await request(app)
+      .get(`/transactions/${transactionId}/receipt`)
+      .set(dbRoleOnlyAdmin);
 
     assert.equal(res.status, 200);
     assert.equal(res.body.id, transactionId);

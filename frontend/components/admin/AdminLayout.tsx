@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Role } from '../../lib/types';
+import { logout } from '../../lib/auth';
 import SupportModal from './SupportModal';
 
 export type AdminTab =
@@ -44,37 +45,47 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen flex bg-gray-100 text-black">
-      <aside className="w-64 bg-white border-r p-6 space-y-4">
+      <aside className="w-64 bg-white border-r p-6 flex flex-col gap-4">
         <div className="space-y-2">
-          <h2 className="text-xl font-semibold">Admin</h2>
+          <h2 className="text-xl font-semibold">Management</h2>
           <button
             type="button"
             onClick={() => router.push('/dashboard')}
-            className="text-sm text-gray-600 hover:text-black"
+            className="w-full bg-black text-white px-3 py-2 rounded text-sm"
           >
             ← Back to register
           </button>
         </div>
 
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => onChange(tab.id)}
-            className={`w-full text-left px-3 py-2 rounded ${
-              active === tab.id ? 'bg-black text-white' : 'hover:bg-gray-100'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        <nav className="space-y-1 flex-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onChange(tab.id)}
+              className={`w-full text-left px-3 py-2 rounded ${
+                active === tab.id ? 'bg-black text-white' : 'hover:bg-gray-100'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
-        <div className="pt-4 border-t">
+        <div className="pt-4 border-t space-y-1">
           <button
             type="button"
             onClick={() => setShowSupport(true)}
             className="w-full text-left px-3 py-2 rounded text-gray-700 hover:bg-gray-100"
           >
             Support / feature request
+          </button>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="w-full text-left px-3 py-2 rounded text-gray-700 hover:bg-gray-100"
+          >
+            Logout
           </button>
         </div>
       </aside>

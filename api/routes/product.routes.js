@@ -31,7 +31,7 @@ router.get("/:id", authenticate, requireUser, async (req, res) => {
 });
 
 // POST /products
-router.post("/", authenticate, requireRole('admin'), requireUser, async (req, res) => {
+router.post("/", authenticate, requireUser, requireRole('admin'), async (req, res) => {
   const { name, description, price, cost_price } = req.body;
 
   if (!name || price == null) {
@@ -43,7 +43,7 @@ router.post("/", authenticate, requireRole('admin'), requireUser, async (req, re
 });
 
 // PUT /products/:id
-router.put("/:id", authenticate, requireRole('admin'), requireUser, async (req, res) => {
+router.put("/:id", authenticate, requireUser, requireRole('admin'), async (req, res) => {
 
   const product = await updateProduct(req.params.id, req.body);
 
@@ -56,7 +56,7 @@ router.put("/:id", authenticate, requireRole('admin'), requireUser, async (req, 
 
 
 // DELETE /products/:id
-router.delete("/:id", authenticate, requireRole('admin'), requireUser, async (req, res) => {
+router.delete("/:id", authenticate, requireUser, requireRole('admin'), async (req, res) => {
   const product = await deleteProduct(req.params.id);
 
   if (!product) {
