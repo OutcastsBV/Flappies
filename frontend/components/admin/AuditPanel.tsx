@@ -29,7 +29,6 @@ export default function AuditPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
 
     getAuditLog(action ? { action } : undefined)
       .then((data) => {
@@ -51,7 +50,10 @@ export default function AuditPanel() {
         <select
           className="border rounded px-3 py-2 text-sm"
           value={action}
-          onChange={(e) => setAction(e.target.value)}
+          onChange={(e) => {
+            setAction(e.target.value);
+            setLoading(true);
+          }}
         >
           <option value="">All actions</option>
           {ACTIONS.map((a) => (

@@ -1,0 +1,4 @@
+# Ensure shell scripts always check out with LF line endings, regardless of
+# the platform/core.autocrlf setting — a CRLF shebang line breaks execution
+# inside Linux containers (e.g. docker-entrypoint-initdb.d scripts).
+*.sh text eol=lf
