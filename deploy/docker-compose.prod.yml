@@ -1,0 +1,148 @@
+# Production compose: pull pre-built images from GHCR (no local build).
+# Usage on the VPS (from the repo root):
+#   cp deploy/.env.production.example deploy/.env   # edit secrets
+#   docker login ghcr.io
+#   docker compose -f deploy/docker-compose.prod.yml pull
+#   docker compose -f deploy/docker-compose.prod.yml up -d
+# Or just run ./deploy/scripts/deploy-pull.sh, which does all of the above.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kassa_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kassasysteem}
+      POSTGRES_USER: ${POSTGRES_USER:-kassa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kassa} -d ${POSTGRES_DB:-kassasysteem}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [kassa]
+
+  postgres_zitadel:
+    image: postgres:16-alpine
+    container_name: kassa_postgres_zitadel
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: zitadel
+      POSTGRES_USER: zitadel
+      POSTGRES_PASSWORD: ${ZITADEL_DB_PASSWORD:?Set ZITADEL_DB_PASSWORD in .env}
+    volumes:
+      - postgres_zitadel_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zitadel -d zitadel"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [kassa]
+
+  zitadel:
+    image: ghcr.io/zitadel/zitadel:latest
+    container_name: kassa_zitadel
+    restart: unless-stopped
+    command: start-from-init --masterkey "${ZITADEL_MASTERKEY:?Set ZITADEL_MASTERKEY (32 chars)}" --tlsMode disabled
+    depends_on:
+      postgres_zitadel:
+        condition: service_healthy
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres_zitadel
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: zitadel
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_DB_PASSWORD}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: zitadel
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${ZITADEL_DB_PASSWORD}
+      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:?Set ZITADEL_EXTERNALDOMAIN to your public IP or domain}
+      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
+      ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
+      ZITADEL_FIRSTINSTANCE_ORG_NAME: ${ZITADEL_ORG_NAME:-Nerdlab}
+      ZITADEL_FIRSTINSTANCE_ORG_DOMAIN: ${ZITADEL_EXTERNALDOMAIN}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USER:-admin}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?Set ZITADEL_ADMIN_PASSWORD in .env}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: ${ZITADEL_ADMIN_EMAIL:-admin@localhost}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_VERIFIED: "true"
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "false"
+      ZITADEL_TLS_ENABLED: "false"
+    ports:
+      - "${ZITADEL_EXTERNALPORT:-8080}:8080"
+    # `zitadel ready` defaults to HTTPS and reports unhealthy when tlsMode is disabled.
+    # The API waits for the container to start, not this health flag (see deploy-pull.sh).
+    healthcheck:
+      disable: true
+    networks: [kassa]
+
+  api:
+    image: ghcr.io/outcastsbv/kassasysteem-api:${KASSA_IMAGE_TAG:-latest}
+    pull_policy: always
+    container_name: kassa_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      zitadel:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgres://${POSTGRES_USER:-kassa}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kassasysteem}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      ZITADEL_URL: ${ZITADEL_URL:?Set ZITADEL_URL in .env}
+      ZITADEL_INTERNAL_URL: http://zitadel:8080
+      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:?Set ZITADEL_EXTERNALDOMAIN in .env}
+      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
+      ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
+      ZITADEL_CLIENT_ID: ${ZITADEL_CLIENT_ID:?Set ZITADEL_CLIENT_ID}
+      ZITADEL_CLIENT_SECRET: ${ZITADEL_CLIENT_SECRET:?Set ZITADEL_CLIENT_SECRET}
+      ZITADEL_REDIRECT_URI: ${ZITADEL_REDIRECT_URI:?Set ZITADEL_REDIRECT_URI in .env}
+      ZITADEL_AUDIENCE: ${ZITADEL_AUDIENCE:-kassasysteem}
+      ZITADEL_IMPERSONATOR_PAT: ${ZITADEL_IMPERSONATOR_PAT:?Set ZITADEL_IMPERSONATOR_PAT}
+      ZITADEL_IMPERSONATOR_CLIENT_ID: ${ZITADEL_IMPERSONATOR_CLIENT_ID:?Set ZITADEL_IMPERSONATOR_CLIENT_ID}
+      ZITADEL_IMPERSONATOR_CLIENT_SECRET: ${ZITADEL_IMPERSONATOR_CLIENT_SECRET:?Set ZITADEL_IMPERSONATOR_CLIENT_SECRET}
+      ZITADEL_SERVICE_PAT: ${ZITADEL_SERVICE_PAT:-}
+      ZITADEL_ORG_ID: ${ZITADEL_ORG_ID:-}
+      RFID_WS_SECRET: ${RFID_WS_SECRET:?Set RFID_WS_SECRET}
+      OPERATION_MODE: ${OPERATION_MODE:-self_service}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TOP_UP_EPC_QR_ENABLED: ${TOP_UP_EPC_QR_ENABLED:-false}
+      TOP_UP_STRIPE_ENABLED: ${TOP_UP_STRIPE_ENABLED:-false}
+      EPC_QR_IBAN: ${EPC_QR_IBAN:-}
+      EPC_QR_BENEFICIARY_NAME: ${EPC_QR_BENEFICIARY_NAME:-}
+      EPC_QR_BIC: ${EPC_QR_BIC:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL in .env}
+    ports:
+      - "${API_PORT:-3001}:3001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/ready"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 10
+    networks: [kassa]
+
+  frontend:
+    image: ghcr.io/outcastsbv/kassasysteem-frontend:${KASSA_IMAGE_TAG:-latest}
+    pull_policy: always
+    container_name: kassa_frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3002}:3002"
+    networks: [kassa]
+
+networks:
+  kassa:
+
+volumes:
+  postgres_data:
+  postgres_zitadel_data:

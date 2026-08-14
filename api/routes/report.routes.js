@@ -1,0 +1,58 @@
+const express = require("express");
+const authenticate = require("../middleware/authenticate");
+const requireUser = require("../middleware/requireUser");
+const requireRole = require("../middleware/requireRole");
+const {
+  getSalesSummary,
+  getSalesByProduct,
+  getSalesByDay,
+  getPnLReport,
+} = require("../services/report.service");
+
+const router = express.Router();
+
+router.get(
+  "/sales",
+  authenticate,
+  requireRole("admin"),
+  requireUser,
+  async (req, res) => {
+    const summary = await getSalesSummary(req.query.from, req.query.to);
+    res.json(summary);
+  }
+);
+
+router.get(
+  "/sales/by-product",
+  authenticate,
+  requireRole("admin"),
+  requireUser,
+  async (req, res) => {
+    const data = await getSalesByProduct(req.query.from, req.query.to);
+    res.json(data);
+  }
+);
+
+router.get(
+  "/sales/by-day",
+  authenticate,
+  requireRole("admin"),
+  requireUser,
+  async (req, res) => {
+    const data = await getSalesByDay(req.query.from, req.query.to);
+    res.json(data);
+  }
+);
+
+router.get(
+  "/pnl",
+  authenticate,
+  requireRole("admin"),
+  requireUser,
+  async (req, res) => {
+    const data = await getPnLReport(req.query.from, req.query.to);
+    res.json(data);
+  }
+);
+
+module.exports = router;

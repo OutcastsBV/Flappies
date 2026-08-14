@@ -1,0 +1,317 @@
+services:
+  # -------------------------
+  # Postgres for KassaSysteem app
+  # -------------------------
+  postgres_app:
+    env_file:
+      - .env
+    image: postgres:16-alpine
+    container_name: postgres_app
+    environment:
+      POSTGRES_DB: ${APP_POSTGRES_DB:-kassasysteem}
+      POSTGRES_USER: ${APP_POSTGRES_USER:-kassa}
+      POSTGRES_PASSWORD: ${APP_POSTGRES_PASSWORD:-change-me-app-db-password}
+    volumes:
+      - postgres_app_data:/var/lib/postgresql/data
+      - ../db_migrations:/migrations:ro
+      - ./app-db-init/run-migrations.sh:/docker-entrypoint-initdb.d/run-migrations.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_POSTGRES_USER:-kassa} -d ${APP_POSTGRES_DB:-kassasysteem}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [appnet]
+
+  # -------------------------
+  # KassaSysteem API
+  # -------------------------
+  api:
+    build:
+      context: ..
+      dockerfile: api/Dockerfile
+    container_name: kassasysteem_api
+    env_file:
+      - .env
+    depends_on:
+      postgres_app:
+        condition: service_healthy
+      zitadel:
+        condition: service_started
+    environment:
+      PORT: 3001
+      PGHOST: postgres_app
+      PGPORT: 5432
+      PGUSER: ${APP_POSTGRES_USER:-kassa}
+      PGPASSWORD: ${APP_POSTGRES_PASSWORD:-change-me-app-db-password}
+      PGDATABASE: ${APP_POSTGRES_DB:-kassasysteem}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3002}
+      ZITADEL_URL: ${ZITADEL_URL:-http://localhost:8080}
+      ZITADEL_INTERNAL_URL: ${ZITADEL_INTERNAL_URL:-http://zitadel:8080}
+      ZITADEL_CLIENT_ID: ${ZITADEL_CLIENT_ID:-kassasysteem}
+      ZITADEL_CLIENT_SECRET: ${ZITADEL_CLIENT_SECRET:-change-me-from-zitadel-console}
+      ZITADEL_REDIRECT_URI: ${ZITADEL_REDIRECT_URI:-http://localhost:3002/callback}
+      ZITADEL_IMPERSONATOR_PAT: ${ZITADEL_IMPERSONATOR_PAT:-}
+      TOP_UP_EPC_QR_ENABLED: ${TOP_UP_EPC_QR_ENABLED:-false}
+      TOP_UP_STRIPE_ENABLED: ${TOP_UP_STRIPE_ENABLED:-false}
+      EPC_QR_IBAN: ${EPC_QR_IBAN:-}
+      EPC_QR_BENEFICIARY_NAME: ${EPC_QR_BENEFICIARY_NAME:-}
+      EPC_QR_BIC: ${EPC_QR_BIC:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3002}
+      OPERATION_MODE: ${OPERATION_MODE:-self_service}
+    ports:
+      - "${APP_API_PORT:-3001}:3001"
+    networks: [appnet]
+
+  # -------------------------
+  # KassaSysteem frontend
+  # -------------------------
+  frontend:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_ZITADEL_URL: ${NEXT_PUBLIC_ZITADEL_URL:-http://localhost:8080}
+        NEXT_PUBLIC_ZITADEL_CLIENT_ID: ${NEXT_PUBLIC_ZITADEL_CLIENT_ID:-kassasysteem}
+        NEXT_PUBLIC_ZITADEL_REDIRECT_URI: ${NEXT_PUBLIC_ZITADEL_REDIRECT_URI:-http://localhost:3002/callback}
+        NEXT_PUBLIC_ZITADEL_LOGOUT_URI: ${NEXT_PUBLIC_ZITADEL_LOGOUT_URI:-http://localhost:3002/}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    container_name: kassasysteem_frontend
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${APP_FRONTEND_PORT:-3002}:3002"
+    networks: [appnet]
+
+  # -------------------------
+  # Postgres for ZITADEL
+  # -------------------------
+  postgres_zitadel:
+    env_file:
+      - .env
+    image: postgres:16
+    container_name: postgres_zitadel
+    environment:
+      POSTGRES_DB: ${ZITADEL_POSTGRES_DB:-zitadel}
+      POSTGRES_USER: ${ZITADEL_POSTGRES_USER:-zitadel}
+      POSTGRES_PASSWORD: ${ZITADEL_POSTGRES_PASSWORD:-zitadel_admin}
+    volumes:
+      - postgres_zitadel_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ZITADEL_POSTGRES_USER:-zitadel} -d ${ZITADEL_POSTGRES_DB:-zitadel}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [appnet]
+
+  # -------------------------
+  # ZITADEL
+  # -------------------------
+  zitadel:
+    env_file:
+      - .env
+    image: ghcr.io/zitadel/zitadel:latest
+    container_name: zitadel
+    command:
+      - start-from-init
+      - --masterkey
+      - ${ZITADEL_MASTERKEY:?Set ZITADEL_MASTERKEY in .env}
+      - --tlsMode
+      - disabled
+    depends_on:
+      postgres_zitadel:
+        condition: service_healthy
+    environment:
+      ZITADEL_DATABASE_POSTGRES_HOST: postgres_zitadel
+      ZITADEL_DATABASE_POSTGRES_PORT: 5432
+      ZITADEL_DATABASE_POSTGRES_DATABASE: ${ZITADEL_POSTGRES_DB:-zitadel}
+      ZITADEL_DATABASE_POSTGRES_USER_USERNAME: ${ZITADEL_POSTGRES_USER:-zitadel}
+      ZITADEL_DATABASE_POSTGRES_USER_PASSWORD: ${ZITADEL_POSTGRES_PASSWORD:-zitadel_admin}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: ${ZITADEL_POSTGRES_USER:-zitadel}
+      ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: ${ZITADEL_POSTGRES_PASSWORD:-zitadel_admin}
+
+      ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:-localhost}
+      ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
+      ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
+
+      ZITADEL_FIRSTINSTANCE_ORG_NAME: ${ZITADEL_FIRSTINSTANCE_ORG_NAME:-Nerdlab}
+      ZITADEL_FIRSTINSTANCE_ORG_DOMAIN: ${ZITADEL_FIRSTINSTANCE_ORG_DOMAIN:-localhost}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME:-admin}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD:-Admin123!}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS:-admin@localhost}
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_VERIFIED: "true"
+
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "false"
+    ports:
+      - "${ZITADEL_HOST_PORT:-8080}:8080"
+    networks: [appnet]
+
+  # -------------------------
+  # Redis
+  # -------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [appnet]
+
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.63.0
+    container_name: redis_exporter
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "9121:9121"
+    networks: [appnet]
+
+  # -------------------------
+  # MinIO
+  # -------------------------
+  minio:
+    env_file:
+      - .env
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_service_admin}
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+      MINIO_PROMETHEUS_URL: http://prometheus:9090
+    ports:
+      - "9002:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [appnet]
+
+  # -------------------------
+  # Vault
+  # -------------------------
+  vault:
+    env_file:
+      - .env
+    image: hashicorp/vault:1.17
+    container_name: vault
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    ports:
+      - "8200:8200"
+    command: ["server", "-dev"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8200/v1/sys/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [appnet]
+
+  # -------------------------
+  # Postgres for Unleash
+  # -------------------------
+  postgres_unleash:
+    env_file:
+      - .env
+    image: postgres:16
+    container_name: postgres_unleash
+    environment:
+      POSTGRES_DB: ${UNLEASH_POSTGRES_DB:-unleash}
+      POSTGRES_USER: ${UNLEASH_POSTGRES_USER:-unleash}
+      POSTGRES_PASSWORD: ${UNLEASH_POSTGRES_PASSWORD:-flag_service_admin}
+    volumes:
+      - postgres_unleash_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${UNLEASH_POSTGRES_USER:-unleash} -d ${UNLEASH_POSTGRES_DB:-unleash}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [appnet]
+
+  # -------------------------
+  # Unleash
+  # -------------------------
+  unleash:
+    env_file:
+      - .env
+    image: unleashorg/unleash-server:5
+    container_name: unleash
+    depends_on:
+      postgres_unleash:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${UNLEASH_POSTGRES_USER:-unleash}:${UNLEASH_POSTGRES_PASSWORD:-flag_service_admin}@postgres_unleash:5432/${UNLEASH_POSTGRES_DB:-unleash}
+      DATABASE_SSL: "false"
+      LOG_LEVEL: info
+      UNLEASH_DEFAULT_ADMIN_USERNAME: ${UNLEASH_DEFAULT_ADMIN_USERNAME:-admin}
+      UNLEASH_DEFAULT_ADMIN_PASSWORD: ${UNLEASH_DEFAULT_ADMIN_PASSWORD:-flag_service_admin}
+    ports:
+      - "4242:4242"
+    networks: [appnet]
+
+  # -------------------------
+  # Prometheus
+  # -------------------------
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    networks: [appnet]
+
+  # -------------------------
+  # Grafana
+  # -------------------------
+  grafana:
+    env_file:
+      - .env
+    image: grafana/grafana:11.3.1
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-grafana_admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks: [appnet]
+
+networks:
+  appnet:
+
+volumes:
+  postgres_zitadel_data:
+  postgres_unleash_data:
+  postgres_app_data:
+  redis_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:

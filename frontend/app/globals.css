@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/* ✅ Layout invariants only */
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+/* ❌ DO NOT set global text color */
+/* ❌ DO NOT override body { color } */
+/* ❌ DO NOT use theme variables yet */
+
+/* Optional: background only */
+body {
+  background-color: rgb(243 244 246); /* gray-100 */
+  font-family: Arial, Helvetica, sans-serif;
+}

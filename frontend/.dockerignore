@@ -1,0 +1,14 @@
+node_modules
+.next
+.env
+.env.*
+!.env.example
+tests
+test-results
+playwright-report
+vitest.config.ts
+vitest.setup.ts
+playwright.config.ts
+**/*.test.ts
+**/*.test.tsx
+npm-debug.log*

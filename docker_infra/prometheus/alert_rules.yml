@@ -1,0 +1,62 @@
+groups:
+  - name: infra-alerts
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Target down (job={{ $labels.job }}, instance={{ $labels.instance }})"
+          description: "Prometheus cannot scrape this target for >2 minutes."
+
+      - alert: HostHighCpu
+        expr: |
+          100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage (instance={{ $labels.instance }})"
+          description: "CPU usage is >90% for 5m."
+
+      - alert: HostLowDisk
+        expr: |
+          (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) < 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space (instance={{ $labels.instance }})"
+          description: "Disk free <10% for 10m on {{ $labels.mountpoint }}."
+
+      # NOTE: Metric name depends on cAdvisor version/config.
+      # If you don't see container_restart_count in Prometheus, remove this rule.
+      - alert: ContainerRestartsHigh
+        expr: increase(container_restart_count[15m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container restarted (name={{ $labels.name }})"
+          description: "Container restarted within the last 15 minutes."
+
+  - name: app-alerts
+    rules:
+      - alert: RedisExporterDown
+        expr: up{job="redis_exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis exporter down"
+          description: "redis_exporter is not being scraped."
+
+      - alert: PostgresExporterDown
+        expr: up{job=~"postgres_keycloak|postgres_unleash|postgres_app"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Postgres exporter down (job={{ $labels.job }})"
+          description: "Postgres exporter target is down."

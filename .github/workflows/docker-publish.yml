@@ -1,0 +1,101 @@
+name: Publish Docker images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      public_host:
+        description: Public IP or hostname baked into the frontend image
+        required: true
+        default: "10.61.2.101"
+      api_port:
+        description: Public API port
+        required: true
+        default: "3001"
+      frontend_port:
+        description: Public frontend port
+        required: true
+        default: "3002"
+      zitadel_port:
+        description: Public ZITADEL port
+        required: true
+        default: "8080"
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  API_IMAGE: ghcr.io/outcastsbv/kassasysteem-api
+  FRONTEND_IMAGE: ghcr.io/outcastsbv/kassasysteem-frontend
+
+jobs:
+  build-and-push:
+    name: Build and push images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve public URLs
+        id: urls
+        run: |
+          HOST="${{ github.event.inputs.public_host || '10.61.2.101' }}"
+          API_PORT="${{ github.event.inputs.api_port || '3001' }}"
+          FE_PORT="${{ github.event.inputs.frontend_port || '3002' }}"
+          Z_PORT="${{ github.event.inputs.zitadel_port || '8080' }}"
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
+          echo "api_url=http://${HOST}:${API_PORT}" >> "$GITHUB_OUTPUT"
+          echo "frontend_url=http://${HOST}:${FE_PORT}" >> "$GITHUB_OUTPUT"
+          echo "zitadel_url=http://${HOST}:${Z_PORT}" >> "$GITHUB_OUTPUT"
+          echo "redirect_uri=http://${HOST}:${FE_PORT}/callback" >> "$GITHUB_OUTPUT"
+          echo "logout_uri=http://${HOST}:${FE_PORT}/" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        name: Build and push API
+        with:
+          context: .
+          file: api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.API_IMAGE }}:latest
+            ${{ env.API_IMAGE }}:${{ github.sha }}
+
+      - uses: docker/build-push-action@v6
+        name: Build and push frontend
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ steps.urls.outputs.api_url }}
+            NEXT_PUBLIC_ZITADEL_URL=${{ steps.urls.outputs.zitadel_url }}
+            NEXT_PUBLIC_ZITADEL_CLIENT_ID=kassasysteem
+            NEXT_PUBLIC_ZITADEL_REDIRECT_URI=${{ steps.urls.outputs.redirect_uri }}
+            NEXT_PUBLIC_ZITADEL_LOGOUT_URI=${{ steps.urls.outputs.logout_uri }}
+
+      - name: Summary
+        run: |
+          echo "### Images published (private on GHCR)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ env.API_IMAGE }}:latest\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`${{ env.FRONTEND_IMAGE }}:latest\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Frontend built for **${{ steps.urls.outputs.host }}**:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API: ${{ steps.urls.outputs.api_url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- App: ${{ steps.urls.outputs.frontend_url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- ZITADEL: ${{ steps.urls.outputs.zitadel_url }}" >> "$GITHUB_STEP_SUMMARY"

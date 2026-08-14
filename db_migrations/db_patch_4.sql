@@ -1,0 +1,2 @@
+ALTER TABLE "user"
+  ALTER COLUMN keycloak_id TYPE TEXT;

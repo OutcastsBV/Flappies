@@ -1,0 +1,1 @@
+-- db_init already defines transaction.id as SERIAL PRIMARY KEY.
