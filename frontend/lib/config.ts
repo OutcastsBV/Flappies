@@ -1,6 +1,6 @@
 export const ZITADEL = {
   issuer: process.env.NEXT_PUBLIC_ZITADEL_URL || 'http://localhost:8080',
-  clientId: process.env.NEXT_PUBLIC_ZITADEL_CLIENT_ID || 'kassasysteem',
+  clientId: process.env.NEXT_PUBLIC_ZITADEL_CLIENT_ID || 'flappies',
   redirectUri:
     process.env.NEXT_PUBLIC_ZITADEL_REDIRECT_URI ||
     'http://localhost:3002/callback',

@@ -89,8 +89,8 @@ Open ZITADEL at **http://localhost:8080** (default admin: `admin` / `Admin123!`)
 ### 2. Set up the application database
 
 ```bash
-psql -U kassa -d kassasysteem -f db_migrations/db_init.sql
-psql -U kassa -d kassasysteem -f db_migrations/db_patch_1.sql
+psql -U flappies -d flappies -f db_migrations/db_init.sql
+psql -U flappies -d flappies -f db_migrations/db_patch_1.sql
 # … continue through the highest-numbered db_patch_*.sql
 ```
 

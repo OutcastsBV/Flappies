@@ -54,7 +54,7 @@ for _ in $(seq 1 60); do
 done
 
 if [[ "$ready" -eq 0 ]]; then
-  echo "WARNING: ZITADEL did not respond yet. Check: docker logs kassa_zitadel --tail 40" >&2
+  echo "WARNING: ZITADEL did not respond yet. Check: docker logs flappies_zitadel --tail 40" >&2
 fi
 
 echo ""
@@ -72,13 +72,13 @@ echo "=== ZITADEL console login (from your .env — not a built-in default) ==="
 echo "  Username: ${ZITADEL_ADMIN_USER:-admin}"
 echo "  Password: (value of ZITADEL_ADMIN_PASSWORD in .env)"
 echo ""
-echo "=== Kassa app login (http://${HOST}:${FRONTEND_PORT:-3002}/login) ==="
+echo "=== Flappies app login (http://${HOST}:${FRONTEND_PORT:-3002}/login) ==="
 echo "  Requires BOTH ZITADEL account AND a row in the app database."
 echo "  After ZITADEL works: ./deploy/scripts/bootstrap-app-admin.sh <zitadel-user-uuid>"
 echo ""
 echo "First-time ZITADEL setup:"
 echo "  1. Open ${ZITADEL_BASE} and sign in with the credentials above"
-echo "  2. Create OAuth app '${ZITADEL_CLIENT_ID:-kassasysteem}' (Web → Code, not User Agent)"
+echo "  2. Create OAuth app '${ZITADEL_CLIENT_ID:-flappies}' (Web → Code, not User Agent)"
 echo "     Enable Authorization Code + Refresh Token + Token Exchange → copy secret to .env"
 echo "  3. Instance → Members: service user gets IAM_LOGIN_CLIENT"
 echo "     Instance → Security Settings: enable Allow Impersonation"

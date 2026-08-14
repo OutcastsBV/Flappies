@@ -1,6 +1,6 @@
 services:
   # -------------------------
-  # Postgres for KassaSysteem app
+  # Postgres for the Flappies app
   # -------------------------
   postgres_app:
     env_file:
@@ -8,28 +8,28 @@ services:
     image: postgres:16-alpine
     container_name: postgres_app
     environment:
-      POSTGRES_DB: ${APP_POSTGRES_DB:-kassasysteem}
-      POSTGRES_USER: ${APP_POSTGRES_USER:-kassa}
+      POSTGRES_DB: ${APP_POSTGRES_DB:-flappies}
+      POSTGRES_USER: ${APP_POSTGRES_USER:-flappies}
       POSTGRES_PASSWORD: ${APP_POSTGRES_PASSWORD:-change-me-app-db-password}
     volumes:
       - postgres_app_data:/var/lib/postgresql/data
       - ../db_migrations:/migrations:ro
       - ./app-db-init/run-migrations.sh:/docker-entrypoint-initdb.d/run-migrations.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${APP_POSTGRES_USER:-kassa} -d ${APP_POSTGRES_DB:-kassasysteem}"]
+      test: ["CMD-SHELL", "pg_isready -U ${APP_POSTGRES_USER:-flappies} -d ${APP_POSTGRES_DB:-flappies}"]
       interval: 5s
       timeout: 3s
       retries: 20
     networks: [appnet]
 
   # -------------------------
-  # KassaSysteem API
+  # Flappies API
   # -------------------------
   api:
     build:
       context: ..
       dockerfile: api/Dockerfile
-    container_name: kassasysteem_api
+    container_name: flappies_api
     env_file:
       - .env
     depends_on:
@@ -41,13 +41,13 @@ services:
       PORT: 3001
       PGHOST: postgres_app
       PGPORT: 5432
-      PGUSER: ${APP_POSTGRES_USER:-kassa}
+      PGUSER: ${APP_POSTGRES_USER:-flappies}
       PGPASSWORD: ${APP_POSTGRES_PASSWORD:-change-me-app-db-password}
-      PGDATABASE: ${APP_POSTGRES_DB:-kassasysteem}
+      PGDATABASE: ${APP_POSTGRES_DB:-flappies}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3002}
       ZITADEL_URL: ${ZITADEL_URL:-http://localhost:8080}
       ZITADEL_INTERNAL_URL: ${ZITADEL_INTERNAL_URL:-http://zitadel:8080}
-      ZITADEL_CLIENT_ID: ${ZITADEL_CLIENT_ID:-kassasysteem}
+      ZITADEL_CLIENT_ID: ${ZITADEL_CLIENT_ID:-flappies}
       ZITADEL_CLIENT_SECRET: ${ZITADEL_CLIENT_SECRET:-change-me-from-zitadel-console}
       ZITADEL_REDIRECT_URI: ${ZITADEL_REDIRECT_URI:-http://localhost:3002/callback}
       ZITADEL_IMPERSONATOR_PAT: ${ZITADEL_IMPERSONATOR_PAT:-}
@@ -65,7 +65,7 @@ services:
     networks: [appnet]
 
   # -------------------------
-  # KassaSysteem frontend
+  # Flappies frontend
   # -------------------------
   frontend:
     build:
@@ -73,11 +73,11 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         NEXT_PUBLIC_ZITADEL_URL: ${NEXT_PUBLIC_ZITADEL_URL:-http://localhost:8080}
-        NEXT_PUBLIC_ZITADEL_CLIENT_ID: ${NEXT_PUBLIC_ZITADEL_CLIENT_ID:-kassasysteem}
+        NEXT_PUBLIC_ZITADEL_CLIENT_ID: ${NEXT_PUBLIC_ZITADEL_CLIENT_ID:-flappies}
         NEXT_PUBLIC_ZITADEL_REDIRECT_URI: ${NEXT_PUBLIC_ZITADEL_REDIRECT_URI:-http://localhost:3002/callback}
         NEXT_PUBLIC_ZITADEL_LOGOUT_URI: ${NEXT_PUBLIC_ZITADEL_LOGOUT_URI:-http://localhost:3002/}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
-    container_name: kassasysteem_frontend
+    container_name: flappies_frontend
     depends_on:
       api:
         condition: service_healthy
@@ -136,7 +136,7 @@ services:
       ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
       ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
 
-      ZITADEL_FIRSTINSTANCE_ORG_NAME: ${ZITADEL_FIRSTINSTANCE_ORG_NAME:-Nerdlab}
+      ZITADEL_FIRSTINSTANCE_ORG_NAME: ${ZITADEL_FIRSTINSTANCE_ORG_NAME:-Flappies}
       ZITADEL_FIRSTINSTANCE_ORG_DOMAIN: ${ZITADEL_FIRSTINSTANCE_ORG_DOMAIN:-localhost}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME:-admin}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD:-Admin123!}

@@ -37,11 +37,11 @@ function loadEnv() {
     rfidWsSecret: process.env.RFID_WS_SECRET || "dev-rfid-secret-change-me",
     databaseUrl: process.env.DATABASE_URL,
     pg: {
-      user: process.env.PGUSER || "kassa",
-      password: process.env.PGPASSWORD || "kassa_password",
+      user: process.env.PGUSER || "flappies",
+      password: process.env.PGPASSWORD || "flappies_password",
       host: process.env.PGHOST || "localhost",
       port: Number(process.env.PGPORT || 5432),
-      database: process.env.PGDATABASE || "kassasysteem",
+      database: process.env.PGDATABASE || "flappies",
     },
   };
 }

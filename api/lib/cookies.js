@@ -1,4 +1,4 @@
-const COOKIE_NAME = "kassa_access_token";
+const COOKIE_NAME = "flappies_access_token";
 
 function setAccessTokenCookie(res, accessToken, expiresInSeconds, env) {
   const maxAge = Math.max(1, Number(expiresInSeconds) || 3600) * 1000;

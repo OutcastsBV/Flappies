@@ -72,8 +72,8 @@ Images are built by `.github/workflows/docker-publish.yml`. It runs automaticall
 
 This publishes two private images (already wired up in `deploy/docker-compose.prod.yml`):
 
-- `ghcr.io/outcastsbv/kassasysteem-api`
-- `ghcr.io/outcastsbv/kassasysteem-frontend`
+- `ghcr.io/outcastsbv/flappies-api`
+- `ghcr.io/outcastsbv/flappies-frontend`
 
 > Forking this repo under a different GitHub org/user? Update the image names in `deploy/docker-compose.prod.yml` and `env.API_IMAGE` / `env.FRONTEND_IMAGE` in `.github/workflows/docker-publish.yml` to match.
 
@@ -92,7 +92,7 @@ cd Flappies
 echo YOUR_GITHUB_PAT | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 ```
 
-If pulling fails with "denied", make sure the packages are linked to this repo: on GitHub, go to the package (**your profile/org → Packages → kassasysteem-api**) → **Package settings** → **Manage Actions access**, and confirm your PAT's account/org has read access (or make the packages public if that's acceptable for you).
+If pulling fails with "denied", make sure the packages are linked to this repo: on GitHub, go to the package (**your profile/org → Packages → flappies-api**) → **Package settings** → **Manage Actions access**, and confirm your PAT's account/org has read access (or make the packages public if that's acceptable for you).
 
 ### Step 4 — Create and edit your `.env`
 
@@ -256,7 +256,7 @@ Open `http://<PUBLIC_HOST>:3002/login` and sign in with:
 - **Username:** the ZITADEL login name (shown on the user's profile as **Preferred Login Name**, e.g. `admin@<PUBLIC_HOST>`) or the user's email
 - **Password:** the password you set for that ZITADEL user
 
-You should land on the dashboard. If something fails here, see [Troubleshooting](#troubleshooting) — the error message from the API logs (`docker logs kassa_api`) tells you exactly which step above to revisit.
+You should land on the dashboard. If something fails here, see [Troubleshooting](#troubleshooting) — the error message from the API logs (`docker logs flappies_api`) tells you exactly which step above to revisit.
 
 ---
 
@@ -339,16 +339,16 @@ Then:
 Both databases live in named Docker volumes (`postgres_data`, `postgres_zitadel_data`). Back up the app database regularly — it's the source of truth for users, products, and transactions:
 
 ```bash
-docker exec kassa_postgres pg_dump -U kassa kassasysteem > backup-$(date +%F).sql
+docker exec flappies_postgres pg_dump -U flappies flappies > backup-$(date +%F).sql
 ```
 
 Restore:
 
 ```bash
-cat backup-2026-01-01.sql | docker exec -i kassa_postgres psql -U kassa -d kassasysteem
+cat backup-2026-01-01.sql | docker exec -i flappies_postgres psql -U flappies -d flappies
 ```
 
-The ZITADEL database (`kassa_postgres_zitadel`) can be backed up the same way if you want to preserve users/roles without redoing the ZITADEL setup steps.
+The ZITADEL database (`flappies_postgres_zitadel`) can be backed up the same way if you want to preserve users/roles without redoing the ZITADEL setup steps.
 
 ---
 

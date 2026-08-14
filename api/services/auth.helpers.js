@@ -6,7 +6,7 @@ function getRoles(auth) {
     return Object.keys(zitadelRoles);
   }
 
-  const keycloakRoles = auth.resource_access?.kassasysteem?.roles;
+  const keycloakRoles = auth.resource_access?.flappies?.roles;
   if (Array.isArray(keycloakRoles)) {
     return keycloakRoles;
   }

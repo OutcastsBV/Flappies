@@ -99,7 +99,7 @@ async function createStripeTopUp(userId, amount) {
           currency: "eur",
           product_data: {
             name: "Wallet top-up",
-            description: `KassaSysteem balance top-up (${reference})`,
+            description: `Flappies balance top-up (${reference})`,
           },
           unit_amount: Math.round(amount * 100),
         },

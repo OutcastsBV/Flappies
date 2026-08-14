@@ -1,16 +1,16 @@
 services:
   postgres_test:
     image: postgres:16-alpine
-    container_name: kassasysteem_postgres_test
+    container_name: flappies_postgres_test
     environment:
-      POSTGRES_USER: kassa
-      POSTGRES_PASSWORD: kassa_password
-      POSTGRES_DB: kassasysteem
+      POSTGRES_USER: flappies
+      POSTGRES_PASSWORD: flappies_password
+      POSTGRES_DB: flappies
     ports:
       # 5434 avoids clashes with other local Postgres containers on 5432/5433
       - "5434:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kassa -d kassasysteem"]
+      test: ["CMD-SHELL", "pg_isready -U flappies -d flappies"]
       interval: 5s
       timeout: 3s
       retries: 10

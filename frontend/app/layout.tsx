@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "KassaSysteem",
-  description: "Created by Sander using NextJS",
+  title: "Flappies",
+  description: "A cash register that flaps for non-profits.",
 };
 
 export default function RootLayout({

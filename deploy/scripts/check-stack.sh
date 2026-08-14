@@ -26,20 +26,20 @@ done
 
 echo ""
 echo "=== Recent ZITADEL logs (last 30 lines) ==="
-docker logs kassa_zitadel --tail 30 2>&1 || echo "  (container not found)"
+docker logs flappies_zitadel --tail 30 2>&1 || echo "  (container not found)"
 
 echo ""
 echo "=== Recent API logs (last 15 lines) ==="
-docker logs kassa_api --tail 15 2>&1 || echo "  (container not found)"
+docker logs flappies_api --tail 15 2>&1 || echo "  (container not found)"
 
 echo ""
 echo "=== App database users ==="
-docker exec kassa_postgres psql -U kassa -d kassasysteem -c \
+docker exec flappies_postgres psql -U flappies -d flappies -c \
   'SELECT id, username, email, keycloak_id FROM "user";' 2>&1 || echo "  (postgres not reachable)"
 
 echo ""
 echo "Tips:"
 echo "  - ZITADEL can take 1–3 minutes to become ready on first boot."
-echo "  - If kassa_zitadel is Restarting/Exited, check: docker logs kassa_zitadel"
+echo "  - If flappies_zitadel is Restarting/Exited, check: docker logs flappies_zitadel"
 echo "  - 1 GB RAM may OOM-kill ZITADEL; add Proxmox swap for the CT."
 echo "  - App login needs a row in the app DB; run: ./deploy/scripts/bootstrap-app-admin.sh"

@@ -47,13 +47,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: kassa
-          POSTGRES_PASSWORD: kassa_password
-          POSTGRES_DB: kassasysteem
+          POSTGRES_USER: flappies
+          POSTGRES_PASSWORD: flappies_password
+          POSTGRES_DB: flappies
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U kassa -d kassasysteem"
+          --health-cmd "pg_isready -U flappies -d flappies"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -61,9 +61,9 @@ jobs:
       NODE_ENV: test
       PGHOST: localhost
       PGPORT: 5432
-      PGUSER: kassa
-      PGPASSWORD: kassa_password
-      PGDATABASE: kassasysteem
+      PGUSER: flappies
+      PGPASSWORD: flappies_password
+      PGDATABASE: flappies
     steps:
       - uses: actions/checkout@v4
 

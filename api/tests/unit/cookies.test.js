@@ -15,7 +15,7 @@ describe("cookies", () => {
 
     setAccessTokenCookie(res, "tok", 1800, { cookieSecure: true });
 
-    assert.equal(COOKIE_NAME, "kassa_access_token");
+    assert.equal(COOKIE_NAME, "flappies_access_token");
     assert.deepEqual(calls[0], [
       COOKIE_NAME,
       "tok",

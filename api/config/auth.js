@@ -21,7 +21,7 @@ function resolvePublicHost() {
 
 const publicHost = resolvePublicHost();
 
-/** Org domain suffix for ZITADEL login names (e.g. KassaAdmin@10.61.2.101). */
+/** Org domain suffix for ZITADEL login names (e.g. admin@10.61.2.101). */
 const orgDomain =
   process.env.ZITADEL_ORG_DOMAIN ||
   process.env.ZITADEL_EXTERNALDOMAIN ||
@@ -38,11 +38,11 @@ module.exports = {
   publicHost,
   orgDomain,
   internalHostHeader,
-  clientId: process.env.ZITADEL_CLIENT_ID || "kassasysteem",
+  clientId: process.env.ZITADEL_CLIENT_ID || "flappies",
   clientSecret: process.env.ZITADEL_CLIENT_SECRET,
   redirectUri:
     process.env.ZITADEL_REDIRECT_URI || "http://localhost:3002/callback",
-  audience: process.env.ZITADEL_AUDIENCE || "kassasysteem",
+  audience: process.env.ZITADEL_AUDIENCE || "flappies",
   impersonatorPat: process.env.ZITADEL_IMPERSONATOR_PAT,
   impersonatorClientId: process.env.ZITADEL_IMPERSONATOR_CLIENT_ID || "",
   impersonatorClientSecret: process.env.ZITADEL_IMPERSONATOR_CLIENT_SECRET || "",

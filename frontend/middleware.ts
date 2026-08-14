@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const COOKIE_NAME = 'kassa_access_token';
+const COOKIE_NAME = 'flappies_access_token';
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get(COOKIE_NAME)?.value;

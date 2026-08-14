@@ -9,24 +9,24 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: kassa_postgres
+    container_name: flappies_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-kassasysteem}
-      POSTGRES_USER: ${POSTGRES_USER:-kassa}
+      POSTGRES_DB: ${POSTGRES_DB:-flappies}
+      POSTGRES_USER: ${POSTGRES_USER:-flappies}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kassa} -d ${POSTGRES_DB:-kassasysteem}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flappies} -d ${POSTGRES_DB:-flappies}"]
       interval: 5s
       timeout: 5s
       retries: 20
-    networks: [kassa]
+    networks: [flappies]
 
   postgres_zitadel:
     image: postgres:16-alpine
-    container_name: kassa_postgres_zitadel
+    container_name: flappies_postgres_zitadel
     restart: unless-stopped
     environment:
       POSTGRES_DB: zitadel
@@ -39,11 +39,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-    networks: [kassa]
+    networks: [flappies]
 
   zitadel:
     image: ghcr.io/zitadel/zitadel:latest
-    container_name: kassa_zitadel
+    container_name: flappies_zitadel
     restart: unless-stopped
     command: start-from-init --masterkey "${ZITADEL_MASTERKEY:?Set ZITADEL_MASTERKEY (32 chars)}" --tlsMode disabled
     depends_on:
@@ -60,7 +60,7 @@ services:
       ZITADEL_EXTERNALDOMAIN: ${ZITADEL_EXTERNALDOMAIN:?Set ZITADEL_EXTERNALDOMAIN to your public IP or domain}
       ZITADEL_EXTERNALPORT: ${ZITADEL_EXTERNALPORT:-8080}
       ZITADEL_EXTERNALSECURE: ${ZITADEL_EXTERNALSECURE:-false}
-      ZITADEL_FIRSTINSTANCE_ORG_NAME: ${ZITADEL_ORG_NAME:-Nerdlab}
+      ZITADEL_FIRSTINSTANCE_ORG_NAME: ${ZITADEL_ORG_NAME:-Flappies}
       ZITADEL_FIRSTINSTANCE_ORG_DOMAIN: ${ZITADEL_EXTERNALDOMAIN}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: ${ZITADEL_ADMIN_USER:-admin}
       ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: ${ZITADEL_ADMIN_PASSWORD:?Set ZITADEL_ADMIN_PASSWORD in .env}
@@ -74,12 +74,12 @@ services:
     # The API waits for the container to start, not this health flag (see deploy-pull.sh).
     healthcheck:
       disable: true
-    networks: [kassa]
+    networks: [flappies]
 
   api:
-    image: ghcr.io/outcastsbv/kassasysteem-api:${KASSA_IMAGE_TAG:-latest}
+    image: ghcr.io/outcastsbv/flappies-api:${FLAPPIES_IMAGE_TAG:-latest}
     pull_policy: always
-    container_name: kassa_api
+    container_name: flappies_api
     restart: unless-stopped
     depends_on:
       postgres:
@@ -89,7 +89,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgres://${POSTGRES_USER:-kassa}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kassasysteem}
+      DATABASE_URL: postgres://${POSTGRES_USER:-flappies}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flappies}
       CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       TRUST_PROXY: ${TRUST_PROXY:-true}
@@ -101,7 +101,7 @@ services:
       ZITADEL_CLIENT_ID: ${ZITADEL_CLIENT_ID:?Set ZITADEL_CLIENT_ID}
       ZITADEL_CLIENT_SECRET: ${ZITADEL_CLIENT_SECRET:?Set ZITADEL_CLIENT_SECRET}
       ZITADEL_REDIRECT_URI: ${ZITADEL_REDIRECT_URI:?Set ZITADEL_REDIRECT_URI in .env}
-      ZITADEL_AUDIENCE: ${ZITADEL_AUDIENCE:-kassasysteem}
+      ZITADEL_AUDIENCE: ${ZITADEL_AUDIENCE:-flappies}
       ZITADEL_IMPERSONATOR_PAT: ${ZITADEL_IMPERSONATOR_PAT:?Set ZITADEL_IMPERSONATOR_PAT}
       ZITADEL_IMPERSONATOR_CLIENT_ID: ${ZITADEL_IMPERSONATOR_CLIENT_ID:?Set ZITADEL_IMPERSONATOR_CLIENT_ID}
       ZITADEL_IMPERSONATOR_CLIENT_SECRET: ${ZITADEL_IMPERSONATOR_CLIENT_SECRET:?Set ZITADEL_IMPERSONATOR_CLIENT_SECRET}
@@ -126,22 +126,22 @@ services:
       timeout: 5s
       start_period: 40s
       retries: 10
-    networks: [kassa]
+    networks: [flappies]
 
   frontend:
-    image: ghcr.io/outcastsbv/kassasysteem-frontend:${KASSA_IMAGE_TAG:-latest}
+    image: ghcr.io/outcastsbv/flappies-frontend:${FLAPPIES_IMAGE_TAG:-latest}
     pull_policy: always
-    container_name: kassa_frontend
+    container_name: flappies_frontend
     restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
     ports:
       - "${FRONTEND_PORT:-3002}:3002"
-    networks: [kassa]
+    networks: [flappies]
 
 networks:
-  kassa:
+  flappies:
 
 volumes:
   postgres_data:

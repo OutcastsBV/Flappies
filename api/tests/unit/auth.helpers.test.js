@@ -19,7 +19,7 @@ describe("auth.helpers", () => {
   it("falls back to Keycloak resource roles", () => {
     const auth = {
       resource_access: {
-        kassasysteem: {
+        flappies: {
           roles: ["admin", "member"],
         },
       },

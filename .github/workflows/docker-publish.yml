@@ -32,8 +32,8 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  API_IMAGE: ghcr.io/outcastsbv/kassasysteem-api
-  FRONTEND_IMAGE: ghcr.io/outcastsbv/kassasysteem-frontend
+  API_IMAGE: ghcr.io/outcastsbv/flappies-api
+  FRONTEND_IMAGE: ghcr.io/outcastsbv/flappies-frontend
 
 jobs:
   build-and-push:
@@ -84,7 +84,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.urls.outputs.api_url }}
             NEXT_PUBLIC_ZITADEL_URL=${{ steps.urls.outputs.zitadel_url }}
-            NEXT_PUBLIC_ZITADEL_CLIENT_ID=kassasysteem
+            NEXT_PUBLIC_ZITADEL_CLIENT_ID=flappies
             NEXT_PUBLIC_ZITADEL_REDIRECT_URI=${{ steps.urls.outputs.redirect_uri }}
             NEXT_PUBLIC_ZITADEL_LOGOUT_URI=${{ steps.urls.outputs.logout_uri }}
 

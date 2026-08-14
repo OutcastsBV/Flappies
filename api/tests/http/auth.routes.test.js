@@ -52,7 +52,7 @@ describe("auth HTTP routes", () => {
     assert.equal(res.body.ok, true);
     const setCookie = res.headers["set-cookie"];
     assert.ok(setCookie);
-    assert.match(setCookie.join(";"), /kassa_access_token=/);
+    assert.match(setCookie.join(";"), /flappies_access_token=/);
     assert.match(setCookie.join(";"), /HttpOnly/i);
   });
 
@@ -61,7 +61,7 @@ describe("auth HTTP routes", () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.ok, true);
     const setCookie = res.headers["set-cookie"] || [];
-    assert.match(setCookie.join(";"), /kassa_access_token=/);
+    assert.match(setCookie.join(";"), /flappies_access_token=/);
   });
 
   it("POST /auth/login rejects missing credentials", async () => {

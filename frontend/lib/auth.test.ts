@@ -17,7 +17,7 @@ describe('auth URLs', () => {
   it('builds a ZITADEL authorize URL', () => {
     const url = getLoginUrl();
     expect(url).toContain('http://localhost:8080/oauth/v2/authorize?');
-    expect(url).toContain('client_id=kassasysteem');
+    expect(url).toContain('client_id=flappies');
     expect(url).toContain('response_type=code');
     expect(url).toContain(encodeURIComponent('http://localhost:3002/callback'));
   });

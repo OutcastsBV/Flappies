@@ -1,7 +1,7 @@
 {
-  "name": "kassasysteem",
+  "name": "flappies",
   "private": true,
-  "description": "Kassa POS system — API, frontend, and test suites",
+  "description": "Flappies POS system — API, frontend, and test suites",
   "scripts": {
     "test": "npm run test:unit && npm run test:e2e && npm run test:load",
     "test:unit": "npm run test:unit --prefix api && npm run test:unit --prefix frontend",

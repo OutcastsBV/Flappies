@@ -1,5 +1,5 @@
-const SESSION_EXPIRES_KEY = 'kassa_session_expires_at';
-const SESSION_LAST_ACTIVITY_KEY = 'kassa_session_last_activity';
+const SESSION_EXPIRES_KEY = 'flappies_session_expires_at';
+const SESSION_LAST_ACTIVITY_KEY = 'flappies_session_last_activity';
 
 /** Idle timeout before auto-logout (default 5 minutes). */
 export const SESSION_IDLE_MS =
