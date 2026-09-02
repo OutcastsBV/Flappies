@@ -22,6 +22,8 @@ const correctionRoutes = require("./routes/correction.routes");
 const paymentMethodRoutes = require("./routes/paymentMethod.routes");
 const supportRoutes = require("./routes/support.routes");
 const auditRoutes = require("./routes/audit.routes");
+const weroRoutes = require("./routes/wero.routes");
+const sumupRoutes = require("./routes/sumup.routes");
 
 const env = loadEnv();
 
@@ -84,6 +86,8 @@ app.use("/corrections", correctionRoutes);
 app.use("/payment-methods", paymentMethodRoutes);
 app.use("/support", supportRoutes);
 app.use("/audit", auditRoutes);
+app.use("/payments/wero", weroRoutes);
+app.use("/payments/sumup", sumupRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });

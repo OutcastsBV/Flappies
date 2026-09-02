@@ -168,10 +168,11 @@ Edit `values-production.yaml`:
 | `global.frontendHost` / `global.apiHost` | The two hostnames you'll point DNS at for this tenant (e.g. `flappies.example.com`, `api.flappies.example.com`) |
 | `global.zitadelUrl` | The **central** ZITADEL's base URL (shared company infrastructure — not deployed by this chart) |
 | `global.tenantId` | A short, unique slug for this tenant (same as `TENANT_SLUG` from Step 3) — tags every metric/log line so a shared Prometheus/Loki can filter by tenant |
+| `payments.cash` / `payments.stripe` / `payments.sumup` / `payments.wero` | Host-level payment modules. `false` hides that method from Config and checkout for this tenant |
 | `global.tlsEnabled` | `true` once cert-manager (or your own TLS secret) is in place |
 | `imagePullSecrets` | `[{name: ghcr-pull-secret}]` from Step 2 |
 | `secrets.postgresPassword` | A strong random password |
-| `secrets.configEncryptionKey` | Random 32-byte string — `openssl rand -base64 32` (encrypts Stripe/SumUp API keys at rest) |
+| `secrets.configEncryptionKey` | Random 32-byte string — `openssl rand -base64 32` (encrypts Stripe/SumUp/Wero API keys at rest) |
 | `secrets.zitadelOrgId`, `secrets.zitadelClientId`, `secrets.zitadelClientSecret`, `secrets.zitadelProjectId`, `secrets.zitadelImpersonatorPat`, `secrets.zitadelImpersonatorClientId`, `secrets.zitadelImpersonatorClientSecret` | The values printed by `provision-tenant-zitadel.sh` in [Step 3](#step-3--provision-this-tenant-in-the-central-zitadel) |
 | `observability.metrics.pushgatewayUrl`, `observability.logging.lokiUrl` | (Optional) the shared Prometheus Pushgateway / Loki URLs, if this deployment has one |
 | `support.smtp.*`, `support.emailTo`, `secrets.smtpUser`, `secrets.smtpPassword` | (Optional) SMTP relay details, to enable the admin "Support / feature request" form |

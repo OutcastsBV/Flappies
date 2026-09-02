@@ -8,6 +8,7 @@ import {
   updatePaymentMethod,
 } from '../../lib/api';
 import type { PaymentMethodConfig, ShopConfig } from '../../lib/types';
+import SumUpReaderSetup from './SumUpReaderSetup';
 
 const WEEKDAYS = [
   { value: 1, label: 'Mon' },
@@ -47,6 +48,16 @@ function isHappyHourActive(config: ShopConfig) {
   return nowMinutes >= startMinutes || nowMinutes < endMinutes;
 }
 
+function fieldDefaults(method: PaymentMethodConfig) {
+  const initial: Record<string, string> = {};
+  for (const field of method.fields) {
+    if (field.secret) continue;
+    if (field.value) initial[field.key] = field.value;
+    else if (field.options?.length) initial[field.key] = field.options[0];
+  }
+  return initial;
+}
+
 function PaymentMethodRow({
   method,
   onSaved,
@@ -54,7 +65,9 @@ function PaymentMethodRow({
   method: PaymentMethodConfig;
   onSaved: (updated: PaymentMethodConfig) => void;
 }) {
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    fieldDefaults(method)
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -81,7 +94,7 @@ function PaymentMethodRow({
         config: values,
       });
       onSaved(updated);
-      setValues({});
+      setValues(fieldDefaults(updated));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save keys');
     } finally {
@@ -117,15 +130,34 @@ function PaymentMethodRow({
                   <span className="text-green-700 ml-1">(configured)</span>
                 )}
               </label>
-              <input
-                type={field.secret ? 'password' : 'text'}
-                placeholder={field.has_value ? '••••••••' : ''}
-                className="border p-2 w-full rounded text-sm"
-                value={values[field.key] ?? ''}
-                onChange={(e) =>
-                  setValues((v) => ({ ...v, [field.key]: e.target.value }))
-                }
-              />
+              {field.options ? (
+                <select
+                  className="border p-2 w-full rounded text-sm"
+                  value={values[field.key] ?? field.options[0]}
+                  onChange={(e) =>
+                    setValues((v) => ({ ...v, [field.key]: e.target.value }))
+                  }
+                >
+                  {field.options.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={field.secret ? 'password' : 'text'}
+                  placeholder={field.has_value && field.secret ? '••••••••' : ''}
+                  className="border p-2 w-full rounded text-sm"
+                  value={values[field.key] ?? ''}
+                  onChange={(e) =>
+                    setValues((v) => ({ ...v, [field.key]: e.target.value }))
+                  }
+                />
+              )}
+              {field.help && (
+                <p className="text-xs text-gray-500 mt-1">{field.help}</p>
+              )}
             </div>
           ))}
           <button
@@ -136,6 +168,9 @@ function PaymentMethodRow({
           >
             Save keys
           </button>
+          {method.method_key === 'SUMUP' && (
+            <SumUpReaderSetup method={method} onSaved={onSaved} />
+          )}
         </div>
       )}
 
@@ -238,19 +273,28 @@ export default function ConfigPanel() {
         <div className="bg-white rounded-xl shadow p-6 space-y-3">
           <h2 className="text-lg font-semibold">Payment methods</h2>
           <p className="text-sm text-gray-600">
-            Enable the methods cashiers can accept at checkout. Stripe and SumUp
-            are recorded only — payment is taken on the provider&apos;s own
-            terminal/app.
+            Enable the methods cashiers can accept at checkout. Only methods
+            offered on this installation are listed here (the hosting owner
+            turns modules on or off). Wero shows a Payconiq QR. SumUp sends
+            the amount to a paired Solo — cashiers pick which one if several
+            are paired. Stripe is recorded only — payment is taken on
+            Stripe&apos;s own terminal/app.
           </p>
 
           <div className="space-y-3">
-            {paymentMethods.map((method) => (
-              <PaymentMethodRow
-                key={method.method_key}
-                method={method}
-                onSaved={handleMethodSaved}
-              />
-            ))}
+            {paymentMethods.length === 0 ? (
+              <p className="text-sm text-gray-600">
+                No payment methods are available on this installation.
+              </p>
+            ) : (
+              paymentMethods.map((method) => (
+                <PaymentMethodRow
+                  key={method.method_key}
+                  method={method}
+                  onSaved={handleMethodSaved}
+                />
+              ))
+            )}
           </div>
         </div>
 

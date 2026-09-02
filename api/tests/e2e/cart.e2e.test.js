@@ -114,6 +114,83 @@ describe("cart checkout e2e", () => {
     await request(app).delete("/cart").set(cashierAuth);
   });
 
+  it("rejects unauthenticated Wero payment creation", async () => {
+    const res = await request(app).post("/payments/wero");
+    assert.equal(res.status, 401);
+  });
+
+  it("rejects creating a Wero payment when the method is not enabled", async () => {
+    await request(app)
+      .post("/cart")
+      .set(cashierAuth)
+      .send({ item_id: fixtures.productId, amount: 1 });
+
+    const res = await request(app).post("/payments/wero").set(cashierAuth);
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /not enabled/);
+
+    await request(app).delete("/cart").set(cashierAuth);
+  });
+
+  it("rejects a Wero checkout without a Payconiq payment id", async () => {
+    const adminAuth = testAuthHeaders(fixtures.adminSub, { roles: ["admin"] });
+    const enableRes = await request(app)
+      .put("/payment-methods/wero")
+      .set(adminAuth)
+      .send({
+        enabled: true,
+        config: { api_key: "wero_test_secret", environment: "sandbox" },
+      });
+    assert.equal(enableRes.status, 200);
+
+    await request(app)
+      .post("/cart")
+      .set(cashierAuth)
+      .send({ item_id: fixtures.productId, amount: 1 });
+
+    const checkoutRes = await request(app)
+      .post("/cart/checkout")
+      .set(cashierAuth)
+      .send({ payment_method: "WERO" });
+
+    assert.equal(checkoutRes.status, 400);
+    assert.match(checkoutRes.body.error, /Wero payment reference is required/);
+
+    await request(app).delete("/cart").set(cashierAuth);
+  });
+
+  it("rejects unauthenticated SumUp checkout creation", async () => {
+    const res = await request(app).post("/payments/sumup");
+    assert.equal(res.status, 401);
+  });
+
+  it("rejects a SumUp checkout without a terminal payment id", async () => {
+    const adminAuth = testAuthHeaders(fixtures.adminSub, { roles: ["admin"] });
+    const enableRes = await request(app)
+      .put("/payment-methods/sumup")
+      .set(adminAuth)
+      .send({
+        enabled: true,
+        config: { api_key: "sup_sk_test", merchant_code: "MK10CL2A" },
+      });
+    assert.equal(enableRes.status, 200);
+
+    await request(app)
+      .post("/cart")
+      .set(cashierAuth)
+      .send({ item_id: fixtures.productId, amount: 1 });
+
+    const checkoutRes = await request(app)
+      .post("/cart/checkout")
+      .set(cashierAuth)
+      .send({ payment_method: "SUMUP" });
+
+    assert.equal(checkoutRes.status, 400);
+    assert.match(checkoutRes.body.error, /SumUp payment reference is required/);
+
+    await request(app).delete("/cart").set(cashierAuth);
+  });
+
   it("rejects checkout with an empty cart", async () => {
     const checkoutRes = await request(app)
       .post("/cart/checkout")

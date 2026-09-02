@@ -1,6 +1,6 @@
 # Flappies
 
-A self-hosted cash register system built for clubs, non-profits, and small venues: cashiers open a till with a starting cash float, ring up sales with cash, Stripe, or SumUp, and log corrections (refunds, bad prices, bad items) against past sales, all with role-based staff accounts.
+A self-hosted cash register system built for clubs, non-profits, and small venues: cashiers open a till with a starting cash float, ring up sales with cash, Stripe, SumUp, or Wero (Payconiq), and log corrections (refunds, bad prices, bad items) against past sales, all with role-based staff accounts.
 
 It's a Next.js frontend, a Node.js/Express API, a PostgreSQL database, and [ZITADEL](https://zitadel.com/) for authentication — all shipped as Docker images so it runs comfortably on a small VPS or a Raspberry Pi-class box behind the counter.
 
@@ -11,7 +11,7 @@ It's a Next.js frontend, a Node.js/Express API, a PostgreSQL database, and [ZITA
 - **Cashier POS checkout** — fast product grid, cart, and a charge modal supporting cash (with tendered/change-due) or any enabled card provider
 - **Register (till) sessions** — cashiers open a register with a starting cash amount and close it with a counted-cash reconciliation; expected vs. counted cash variance is tracked per session
 - **Corrections** — log a refund, bad price, bad item, or other adjustment against any past transaction, with a reason and running net total
-- **Modular payment methods** — Cash, Stripe, and SumUp can each be enabled/disabled and configured (API keys) independently from the admin dashboard; Stripe/SumUp are recorded only for now (payment is taken on the provider's own terminal/app)
+- **Modular payment methods** — Cash, Stripe, SumUp, and Wero (Payconiq) can each be enabled/disabled and configured (API keys) independently from the admin dashboard. The hosting owner can hide a method entirely per tenant with `PAYMENT_<METHOD>_AVAILABLE=false`. Wero shows a live Payconiq QR at checkout; SumUp sends the amount to a paired Solo terminal; Stripe is recorded only (payment is taken on Stripe's own terminal/app)
 - **Role-based staff accounts** — Admin (full control incl. config), Manager (everything except managing other managers/admins or changing config), and Cashier (POS + corrections)
 - **Happy hour** — a configurable discount window flags and badges affected sales, and reports/transactions can filter by it
 - **Admin dashboard** — manage products, inventory, users/roles, payment methods, register session history, and sales reports (including a breakdown by payment method)
@@ -169,8 +169,8 @@ Flappies/
 │   ├── db/                       Postgres connection pool
 │   ├── lib/                      Cookies, logger, config encryption (crypto.js)
 │   ├── middleware/                JWT auth, role checks (requireRole)
-│   ├── payments/                  Cash + generic "record only" payment handlers, method registry
-│   ├── routes/                    auth, cart, product, inventory, transaction, report, register, corrections, payment-methods, user, config
+│   ├── payments/                  Cash, Wero/Payconiq QR, SumUp terminal, record-only Stripe, method registry
+│   ├── routes/                    auth, cart, product, inventory, transaction, report, register, corrections, payment-methods, wero, user, config
 │   ├── services/                  Business logic (checkout, register, corrections, ZITADEL, users, receipts, ...)
 │   ├── scripts/                   migrate.js, run-tests.js
 │   ├── tests/                     unit/, http/, e2e/, helpers/

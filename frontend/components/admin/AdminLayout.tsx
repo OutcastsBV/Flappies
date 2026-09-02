@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Role } from '../../lib/types';
 import { logout } from '../../lib/auth';
+import BrandLogo from '../BrandLogo';
 import SupportModal from './SupportModal';
 
 export type AdminTab =
@@ -47,7 +48,11 @@ export default function AdminLayout({
     <div className="min-h-screen flex bg-gray-100 text-black">
       <aside className="w-64 bg-white border-r p-6 flex flex-col gap-4">
         <div className="space-y-2">
-          <h2 className="text-xl font-semibold">Management</h2>
+          <div className="flex items-center gap-2">
+            <BrandLogo size={32} className="rounded-lg" alt="" />
+            <h2 className="text-xl font-semibold">Flappies</h2>
+          </div>
+          <p className="text-sm text-gray-600">Management</p>
           <button
             type="button"
             onClick={() => router.push('/dashboard')}

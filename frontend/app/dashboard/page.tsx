@@ -12,6 +12,7 @@ import type {
   CurrentRegister,
   EnabledPaymentMethod,
   Receipt,
+  RegisterSummary,
   ShopInfo,
   Transaction,
 } from '../../lib/types';
@@ -33,6 +34,7 @@ import {
   getEnabledPaymentMethods,
 } from '../../lib/api';
 import { isManagerOrAdmin, logout } from '../../lib/auth';
+import BrandLogo from '../../components/BrandLogo';
 
 export default function DashboardPage() {
   return (
@@ -154,14 +156,17 @@ function DashboardContent() {
     details: { amountTendered?: number; paymentReference?: string }
   ) {
     const result = await checkout(method, details);
-    const receiptData = await getReceipt(result.transaction_id);
-
-    setCart([]);
-    setProducts(await getInventory());
-    setMyTransactions(await getMyTransactions());
-    await refreshRegister();
-
     setShowCharge(false);
+    setCart([]);
+
+    const [receiptData, inventory, transactions] = await Promise.all([
+      getReceipt(result.transaction_id),
+      getInventory(),
+      getMyTransactions(),
+    ]);
+    setProducts(inventory);
+    setMyTransactions(transactions);
+    await refreshRegister();
     setReceipt(receiptData);
   }
 
@@ -209,13 +214,16 @@ function DashboardContent() {
     <main className="min-h-screen bg-gray-100 p-8 text-gray-900">
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-semibold">Register</h1>
-            {shopInfo?.happy_hour_active && (
-              <p className="text-sm text-green-700 font-medium mt-1">
-                Happy hour — all prices 50% off!
-              </p>
-            )}
+          <div className="flex items-center gap-3">
+            <BrandLogo size={48} />
+            <div>
+              <h1 className="text-3xl font-semibold">Register</h1>
+              {shopInfo?.happy_hour_active && (
+                <p className="text-sm text-green-700 font-medium mt-1">
+                  Happy hour — all prices 50% off!
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex gap-3 items-center">
             {isManagerOrAdmin(user) && (
@@ -255,6 +263,12 @@ function DashboardContent() {
                 <p className="text-gray-600">Cash sales</p>
                 <p className="font-medium">
                   €{register!.summary.cash_sales.toFixed(2)}
+                </p>
+              </div>
+              <div className="text-sm">
+                <p className="text-gray-600">Card / QR sales</p>
+                <p className="font-medium">
+                  €{register!.summary.other_sales.toFixed(2)}
                 </p>
               </div>
               <div className="text-sm">
@@ -445,6 +459,11 @@ function DashboardContent() {
                     >
                       #{t.id} —{' '}
                       {new Date(t.timestamp).toLocaleDateString()}
+                      {t.payment_method && (
+                        <span className="text-xs text-gray-500 capitalize">
+                          {t.payment_method.toLowerCase()}
+                        </span>
+                      )}
                       <HappyHourBadge active={t.happy_hour_active} />
                     </span>
                     <span className="flex items-center gap-3">
@@ -529,7 +548,7 @@ function CloseRegisterModal({
   onClose,
   onConfirm,
 }: {
-  summary: { starting_amount: number; cash_sales: number; expected_cash: number };
+  summary: RegisterSummary;
   error: string;
   onClose: () => void;
   onConfirm: (countedCashAmount: number, notes: string) => void;
@@ -551,11 +570,19 @@ function CloseRegisterModal({
             <span>Cash sales</span>
             <span>€{summary.cash_sales.toFixed(2)}</span>
           </div>
+          <div className="flex justify-between">
+            <span>Card / QR sales</span>
+            <span>€{summary.other_sales.toFixed(2)}</span>
+          </div>
           <div className="flex justify-between font-medium">
-            <span>Expected cash</span>
+            <span>Expected cash in drawer</span>
             <span>€{summary.expected_cash.toFixed(2)}</span>
           </div>
         </div>
+        <p className="text-xs text-gray-500">
+          Expected cash is the notes in the till (starting float + cash sales).
+          Card and QR payments do not go in the drawer.
+        </p>
 
         <div>
           <label className="block text-sm font-medium mb-1">

@@ -16,6 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Flappies",
   description: "A cash register that flaps for non-profits.",
+  icons: {
+    icon: "/flappies-logo.png",
+    apple: "/flappies-logo.png",
+  },
 };
 
 export default function RootLayout({

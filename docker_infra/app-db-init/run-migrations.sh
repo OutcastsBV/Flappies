@@ -14,7 +14,10 @@ for migration in \
   db_patch_9.sql \
   db_patch_10.sql \
   db_patch_11.sql \
-  db_patch_12.sql
+  db_patch_12.sql \
+  db_patch_13.sql \
+  db_patch_14.sql \
+  db_patch_15.sql
 do
   echo "Running migration: $migration"
   psql -v ON_ERROR_STOP=1 \

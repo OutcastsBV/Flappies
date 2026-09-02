@@ -29,6 +29,14 @@ global:
   # shared/master Prometheus + Loki can tell tenants apart.
   tenantId: change-me-tenant-slug
 
+# Host-level payment modules. false hides that method from Admin → Config
+# and checkout for this tenant (the shop admin cannot turn it back on).
+payments:
+  cash: true
+  stripe: true
+  sumup: true
+  wero: true
+
 imagePullSecrets: []
 # - name: ghcr-pull-secret
 
@@ -139,7 +147,7 @@ secrets:
   zitadelImpersonatorClientId: "change-me-service-user-client-id"
   zitadelImpersonatorClientSecret: "change-me-service-user-client-secret"
 
-  # 32-byte key used to encrypt payment method API keys (Stripe/SumUp) at rest.
+  # 32-byte key used to encrypt payment method API keys (Stripe/SumUp/Wero) at rest.
   configEncryptionKey: "change-me-32-byte-encryption-key"
 
   # Optional — leave blank to disable. See observability/support above.

@@ -91,6 +91,37 @@ export type PaymentMethodField = {
   label: string;
   secret: boolean;
   has_value: boolean;
+  options?: string[];
+  value?: string | null;
+  help?: string;
+};
+
+export type WeroPayment = {
+  paymentId: string;
+  status: string;
+  expiresAt: string | null;
+  qrcodeUrl?: string | null;
+  amountCents: number;
+  total?: number;
+};
+
+export type SumUpReader = {
+  id: string;
+  name: string;
+  status: string;
+  model?: string | null;
+  serial?: string | null;
+};
+
+export type SumUpCheckout = {
+  readerId: string;
+  checkoutId: string;
+  clientTransactionId?: string | null;
+  status: string;
+  paymentReference: string;
+  amountCents: number;
+  total?: number;
+  validUntil?: string | null;
 };
 
 export type PaymentMethodConfig = {
@@ -104,6 +135,7 @@ export type PaymentMethodConfig = {
 export type EnabledPaymentMethod = {
   method_key: string;
   label: string;
+  default_reader_id?: string;
 };
 
 export type RegisterSession = {

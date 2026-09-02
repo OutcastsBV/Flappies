@@ -81,12 +81,35 @@ SMTP_PASSWORD=...
      panel and confirm the sale appears/disappears as expected.
 
 2. **Sales-by-payment-method report matches manual checkouts.**
-   - As admin: **Payment methods**, enable Stripe (any placeholder secret key)
-     and SumUp.
+   - As admin: **Payment methods**, enable Stripe (any placeholder secret key),
+     SumUp, and Wero.
    - As cashier: ring up one Cash sale and one Stripe sale (with a reference
      note).
    - As admin: **Reports → Sales by payment method** — confirm the
      transaction count and revenue for CASH and STRIPE match what you rang up.
+
+2b. **Wero (Payconiq) QR checkout (sandbox).**
+   - As admin: **Config → Wero**, paste a Payconiq Instore Display API key,
+     set Environment to `sandbox`, save, and enable Wero.
+   - As cashier: add items, open Charge, choose **Wero**. A QR should appear
+     (valid ~2 minutes). Scan it with the Payconiq/Wero sandbox app; the sale
+     should record itself when the payment succeeds. Closing the modal before
+     payment should cancel the QR.
+   - Confirm a Wero sale cannot be completed without a successful Payconiq
+     payment (no manual "Confirm payment" on that method).
+
+2c. **SumUp Solo terminal checkout.**
+   - As admin: **Config → SumUp**, paste the API key and merchant code from
+     [me.sumup.com](https://me.sumup.com/settings/api-keys), save, pair the
+     Solo with the code on the device (log out of the SumUp app first), then
+     enable SumUp.
+   - As cashier: Charge → **SumUp**. If several Solos are paired, pick the
+     terminal first. The amount should appear on that device. After the
+     customer pays, the sale records itself. Closing the modal before
+     payment should cancel the terminal prompt.
+   - Bluetooth-only Air/Plus readers cannot take this Cloud API payment.
+   - Stripe (record-only) can be enabled alongside SumUp so cashiers choose
+     Cash, Stripe, or a specific SumUp Solo on the same sale.
 
 3. **Audit tab.**
    - As admin: change a config value (e.g. happy-hour window), toggle a

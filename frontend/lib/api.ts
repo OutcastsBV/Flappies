@@ -19,7 +19,10 @@ import type {
   ShopConfig,
   ShopInfo,
   SupportCategory,
+  SumUpCheckout,
+  SumUpReader,
   Transaction,
+  WeroPayment,
 } from './types';
 
 export type User = {
@@ -54,22 +57,28 @@ export type Product = {
   price: number;
 };
 
-export async function apiFetch(url: string, options: RequestInit = {}) {
+type ApiFetchOptions = RequestInit & { quiet?: boolean };
+
+export async function apiFetch(url: string, options: ApiFetchOptions = {}) {
+  const { quiet = false, headers: optionHeaders, ...fetchOptions } = options;
   const headers: HeadersInit = {
-    ...(options.headers || {}),
+    ...(optionHeaders || {}),
   };
 
-  if (options.body && !(options.headers as Record<string, string>)?.['Content-Type']) {
+  if (
+    fetchOptions.body &&
+    !(optionHeaders as Record<string, string>)?.['Content-Type']
+  ) {
     (headers as Record<string, string>)['Content-Type'] = 'application/json';
   }
 
   const res = await fetch(url, {
-    ...options,
+    ...fetchOptions,
     credentials: 'include',
     headers,
   });
 
-  if (!res.ok) {
+  if (!res.ok && !quiet) {
     console.error('API error', res.status, url);
   }
 
@@ -170,6 +179,74 @@ export async function checkout(
   });
 
   return handleResponseWithError(res, 'Checkout failed');
+}
+
+export async function createWeroPayment(): Promise<WeroPayment> {
+  const res = await apiFetch(`${API_BASE_URL}/payments/wero`, {
+    method: 'POST',
+  });
+  return handleResponseWithError(res, 'Failed to create Wero payment');
+}
+
+export async function getWeroPayment(paymentId: string): Promise<WeroPayment> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/payments/wero/${encodeURIComponent(paymentId)}`
+  );
+  return handleResponseWithError(res, 'Failed to load Wero payment');
+}
+
+export async function cancelWeroPayment(paymentId: string): Promise<void> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/payments/wero/${encodeURIComponent(paymentId)}`,
+    { method: 'DELETE', quiet: true }
+  );
+  if (res.status === 204) return;
+  await handleResponseWithError(res, 'Failed to cancel Wero payment');
+}
+
+export async function createSumupCheckout(
+  readerId?: string
+): Promise<SumUpCheckout> {
+  const res = await apiFetch(`${API_BASE_URL}/payments/sumup`, {
+    method: 'POST',
+    body: JSON.stringify(readerId ? { reader_id: readerId } : {}),
+  });
+  return handleResponseWithError(res, 'Failed to start SumUp payment');
+}
+
+export async function getSumupCheckout(
+  readerId: string,
+  checkoutId: string
+): Promise<SumUpCheckout> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/payments/sumup/${encodeURIComponent(readerId)}/${encodeURIComponent(checkoutId)}`
+  );
+  return handleResponseWithError(res, 'Failed to load SumUp payment');
+}
+
+export async function cancelSumupCheckout(readerId: string): Promise<void> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/payments/sumup/${encodeURIComponent(readerId)}`,
+    { method: 'DELETE', quiet: true }
+  );
+  if (res.status === 204) return;
+  await handleResponseWithError(res, 'Failed to cancel SumUp payment');
+}
+
+export async function listSumupReaders(): Promise<SumUpReader[]> {
+  const res = await apiFetch(`${API_BASE_URL}/payments/sumup/readers`);
+  return handleResponseWithError(res, 'Failed to list SumUp terminals');
+}
+
+export async function pairSumupReader(
+  pairingCode: string,
+  name?: string
+): Promise<SumUpReader> {
+  const res = await apiFetch(`${API_BASE_URL}/payments/sumup/readers`, {
+    method: 'POST',
+    body: JSON.stringify({ pairing_code: pairingCode, name }),
+  });
+  return handleResponseWithError(res, 'Failed to pair SumUp terminal');
 }
 
 export async function getMyTransactions(): Promise<Transaction[]> {

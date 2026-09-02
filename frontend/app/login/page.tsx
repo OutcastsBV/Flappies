@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginWithPassword } from '../../lib/auth';
+import BrandLogo from '../../components/BrandLogo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,7 +31,13 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="w-full max-w-sm p-8 rounded-xl shadow-lg border bg-white space-y-6">
-        <h1 className="text-2xl font-semibold text-center">Sign in</h1>
+        <div className="flex flex-col items-center gap-3">
+          <BrandLogo size={72} alt="" />
+          <div className="text-center">
+            <p className="text-xl font-semibold">Flappies</p>
+            <h1 className="text-2xl font-semibold mt-1">Sign in</h1>
+          </div>
+        </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>

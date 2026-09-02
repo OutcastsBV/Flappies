@@ -30,6 +30,18 @@ on:
         description: OIDC client ID for this tenant's ZITADEL application (from provision-tenant-zitadel.sh)
         required: true
         default: "flappies"
+      image_tag:
+        description: Extra image tag (tenant slug + timestamp). Applied alongside latest and git sha so tenants do not share :latest.
+        required: false
+        default: ""
+      api_url:
+        description: Full public API URL baked into the frontend (e.g. https://api.acme.flappies.shop). Overrides host+port when set.
+        required: false
+        default: ""
+      frontend_url:
+        description: Full public frontend URL baked into the frontend (e.g. https://acme.flappies.shop). Overrides host+port when set.
+        required: false
+        default: ""
 
 concurrency:
   group: docker-publish-${{ github.ref }}
@@ -59,13 +71,31 @@ jobs:
           FE_PORT="${{ github.event.inputs.frontend_port || '3002' }}"
           Z_URL="${{ github.event.inputs.zitadel_url || 'http://10.61.2.101:8080' }}"
           Z_CLIENT_ID="${{ github.event.inputs.zitadel_client_id || 'flappies' }}"
+          API_URL="${{ github.event.inputs.api_url }}"
+          FE_URL="${{ github.event.inputs.frontend_url }}"
+          IMAGE_TAG="${{ github.event.inputs.image_tag }}"
+          if [ -z "$API_URL" ]; then API_URL="http://${HOST}:${API_PORT}"; fi
+          if [ -z "$FE_URL" ]; then FE_URL="http://${HOST}:${FE_PORT}"; fi
           echo "host=$HOST" >> "$GITHUB_OUTPUT"
-          echo "api_url=http://${HOST}:${API_PORT}" >> "$GITHUB_OUTPUT"
-          echo "frontend_url=http://${HOST}:${FE_PORT}" >> "$GITHUB_OUTPUT"
+          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
+          echo "frontend_url=$FE_URL" >> "$GITHUB_OUTPUT"
           echo "zitadel_url=$Z_URL" >> "$GITHUB_OUTPUT"
           echo "zitadel_client_id=$Z_CLIENT_ID" >> "$GITHUB_OUTPUT"
-          echo "redirect_uri=http://${HOST}:${FE_PORT}/callback" >> "$GITHUB_OUTPUT"
-          echo "logout_uri=http://${HOST}:${FE_PORT}/" >> "$GITHUB_OUTPUT"
+          echo "redirect_uri=${FE_URL%/}/callback" >> "$GITHUB_OUTPUT"
+          echo "logout_uri=${FE_URL%/}/" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          {
+            echo "api_tags<<EOF"
+            echo "${{ env.API_IMAGE }}:latest"
+            echo "${{ env.API_IMAGE }}:${{ github.sha }}"
+            if [ -n "$IMAGE_TAG" ]; then echo "${{ env.API_IMAGE }}:${IMAGE_TAG}"; fi
+            echo "EOF"
+            echo "fe_tags<<EOF"
+            echo "${{ env.FRONTEND_IMAGE }}:latest"
+            echo "${{ env.FRONTEND_IMAGE }}:${{ github.sha }}"
+            if [ -n "$IMAGE_TAG" ]; then echo "${{ env.FRONTEND_IMAGE }}:${IMAGE_TAG}"; fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: docker/login-action@v3
         with:
@@ -79,9 +109,7 @@ jobs:
           context: .
           file: api/Dockerfile
           push: true
-          tags: |
-            ${{ env.API_IMAGE }}:latest
-            ${{ env.API_IMAGE }}:${{ github.sha }}
+          tags: ${{ steps.urls.outputs.api_tags }}
 
       - uses: docker/build-push-action@v6
         name: Build and push frontend
@@ -89,9 +117,7 @@ jobs:
           context: .
           file: frontend/Dockerfile
           push: true
-          tags: |
-            ${{ env.FRONTEND_IMAGE }}:latest
-            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          tags: ${{ steps.urls.outputs.fe_tags }}
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.urls.outputs.api_url }}
             NEXT_PUBLIC_ZITADEL_URL=${{ steps.urls.outputs.zitadel_url }}

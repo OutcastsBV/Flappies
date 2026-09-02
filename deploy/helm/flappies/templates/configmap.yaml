@@ -15,6 +15,10 @@ data:
   TRUST_PROXY: {{ .Values.api.trustProxy | quote }}
   LOG_LEVEL: {{ .Values.api.logLevel | quote }}
   TENANT_ID: {{ .Values.global.tenantId | quote }}
+  PAYMENT_CASH_AVAILABLE: {{ ternary "true" "false" .Values.payments.cash | quote }}
+  PAYMENT_STRIPE_AVAILABLE: {{ ternary "true" "false" .Values.payments.stripe | quote }}
+  PAYMENT_SUMUP_AVAILABLE: {{ ternary "true" "false" .Values.payments.sumup | quote }}
+  PAYMENT_WERO_AVAILABLE: {{ ternary "true" "false" .Values.payments.wero | quote }}
 
   # --- App Postgres connection (password comes from the Secret) ---
   PGHOST: {{ include "flappies.fullname" . }}-postgres-app

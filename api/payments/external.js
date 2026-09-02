@@ -1,8 +1,7 @@
 /**
- * Generic "record only" handler for any enabled payment method that isn't
- * cash (Stripe, SumUp, and any future provider). The payment is taken on a
- * separate device/app outside this system; we just record the method and an
- * optional reference note. No balance mutation, no live API call (yet).
+ * "record only" handler for any enabled payment method that isn't cash
+ * and doesn't have its own live flow (Stripe). Wero and SumUp are verified
+ * against their providers in checkout.service before this records the sale.
  */
 function processExternalPayment(total, { paymentReference } = {}) {
   if (paymentReference != null && typeof paymentReference !== "string") {

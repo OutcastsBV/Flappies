@@ -13,6 +13,13 @@ global:
   tlsSecretName: flappies-tls
   ingressClassName: nginx
 
+# Host-level payment modules for this tenant. Set stripe: false to hide Stripe.
+payments:
+  cash: true
+  stripe: true
+  sumup: true
+  wero: true
+
 imagePullSecrets:
   - name: ghcr-pull-secret
 

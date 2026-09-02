@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from './Modal';
-import type { EnabledPaymentMethod } from '../lib/types';
+import WeroQrPanel from './WeroQrPanel';
+import SumUpTerminalPanel from './SumUpTerminalPanel';
+import { listSumupReaders } from '../lib/api';
+import type { EnabledPaymentMethod, SumUpReader } from '../lib/types';
 
 export default function ChargeModal({
   total,
@@ -23,8 +26,16 @@ export default function ChargeModal({
   const [paymentReference, setPaymentReference] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [paidReference, setPaidReference] = useState('');
+  const [sumupReaders, setSumupReaders] = useState<SumUpReader[]>([]);
+  const [sumupReaderId, setSumupReaderId] = useState('');
+  const [sumupReadersError, setSumupReadersError] = useState('');
+  const [sumupReadersLoaded, setSumupReadersLoaded] = useState(false);
 
   const isCash = method === 'CASH';
+  const isWero = method === 'WERO';
+  const isSumUp = method === 'SUMUP';
+  const selectedMethod = methods.find((m) => m.method_key === method);
   const tenderedValue = Number(amountTendered);
   const changeDue =
     isCash && Number.isFinite(tenderedValue) ? tenderedValue - total : 0;
@@ -32,6 +43,49 @@ export default function ChargeModal({
   const quickAmounts = Array.from(
     new Set([total, Math.ceil(total / 5) * 5, Math.ceil(total / 10) * 10, Math.ceil(total / 20) * 20])
   ).filter((amount) => amount > 0);
+
+  const defaultSumupReaderId = methods.find((m) => m.method_key === 'SUMUP')
+    ?.default_reader_id;
+
+  useEffect(() => {
+    if (!isSumUp) return undefined;
+
+    let cancelled = false;
+    setSumupReadersLoaded(false);
+    setSumupReadersError('');
+    listSumupReaders()
+      .then((readers) => {
+        if (cancelled) return;
+        const paired = readers.filter((reader) => reader.status === 'paired');
+        setSumupReaders(paired);
+        setSumupReadersLoaded(true);
+        setSumupReaderId((current) => {
+          if (current && paired.some((reader) => reader.id === current)) {
+            return current;
+          }
+          if (paired.length === 1) return paired[0].id;
+          if (
+            defaultSumupReaderId &&
+            paired.some((reader) => reader.id === defaultSumupReaderId)
+          ) {
+            return defaultSumupReaderId;
+          }
+          return '';
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setSumupReadersLoaded(true);
+          setSumupReadersError(
+            err instanceof Error ? err.message : 'Failed to list SumUp terminals'
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSumUp, defaultSumupReaderId]);
 
   async function handleConfirm() {
     setError('');
@@ -61,6 +115,38 @@ export default function ChargeModal({
     }
   }
 
+  async function handleSumupPaid(paymentReference: string) {
+    setError('');
+    setPaidReference(paymentReference);
+    setSubmitting(true);
+    try {
+      await onConfirm('SUMUP', { paymentReference });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Checkout failed';
+      setError(
+        `Payment was received by SumUp but the sale could not be recorded. Do not charge again. Reference: ${paymentReference}. ${message}`
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleWeroPaid(paymentId: string) {
+    setError('');
+    setPaidReference(paymentId);
+    setSubmitting(true);
+    try {
+      await onConfirm('WERO', { paymentReference: paymentId });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Checkout failed';
+      setError(
+        `Payment was received by Wero but the sale could not be recorded. Do not charge again. Reference: ${paymentId}. ${message}`
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (methods.length === 0) {
     return (
       <Modal title="Charge customer" onClose={onClose}>
@@ -85,7 +171,12 @@ export default function ChargeModal({
               <button
                 key={m.method_key}
                 type="button"
-                onClick={() => setMethod(m.method_key)}
+                onClick={() => {
+                  if (submitting) return;
+                  setMethod(m.method_key);
+                  setError('');
+                  setPaidReference('');
+                }}
                 className={`px-3 py-2 rounded border text-sm ${
                   method === m.method_key
                     ? 'bg-black text-white border-black'
@@ -131,6 +222,74 @@ export default function ChargeModal({
               </p>
             )}
           </div>
+        ) : isWero ? (
+          paidReference ? (
+            <p className="text-sm text-center text-gray-600">
+              Payment received — recording sale…
+            </p>
+          ) : (
+            <WeroQrPanel key={`${method}-${total}`} onPaid={handleWeroPaid} />
+          )
+        ) : isSumUp ? (
+          paidReference ? (
+            <p className="text-sm text-center text-gray-600">
+              Payment received — recording sale…
+            </p>
+          ) : (
+          <div className="space-y-3">
+            {sumupReadersError ? (
+              <p className="text-sm text-red-600">{sumupReadersError}</p>
+            ) : !sumupReadersLoaded ? (
+              <p className="text-sm text-gray-600">
+                Loading SumUp terminals…
+              </p>
+            ) : sumupReaders.length === 0 ? (
+              <p className="text-sm text-gray-600">
+                No SumUp terminal is paired. Pair one in Admin → Config.
+              </p>
+            ) : (
+              <>
+                {sumupReaders.length > 1 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Terminal</p>
+                    <div className="flex flex-wrap gap-2">
+                      {sumupReaders.map((reader) => (
+                        <button
+                          key={reader.id}
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => {
+                            setSumupReaderId(reader.id);
+                            setError('');
+                            setPaidReference('');
+                          }}
+                          className={`px-3 py-2 rounded border text-sm ${
+                            sumupReaderId === reader.id
+                              ? 'bg-black text-white border-black'
+                              : 'bg-white text-gray-700 border-gray-300'
+                          }`}
+                        >
+                          {reader.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {sumupReaderId ? (
+                  <SumUpTerminalPanel
+                    key={`${method}-${total}-${sumupReaderId}`}
+                    readerId={sumupReaderId}
+                    onPaid={handleSumupPaid}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-600">
+                    Choose which SumUp terminal to send the amount to.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+          )
         ) : (
           <div>
             <label className="block text-sm font-medium mb-1">
@@ -144,22 +303,34 @@ export default function ChargeModal({
               maxLength={140}
             />
             <p className="text-xs text-gray-500 mt-1">
-              Payment is taken on the {method.toLowerCase()} terminal/app — this just
-              records that it happened.
+              Payment is taken on the {selectedMethod?.label ?? method}{' '}
+              terminal/app — this just records that it happened.
             </p>
           </div>
         )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <button
-          type="button"
-          onClick={handleConfirm}
-          disabled={submitting}
-          className="w-full bg-black text-white py-2 rounded-md disabled:opacity-50"
-        >
-          {submitting ? 'Processing…' : 'Confirm payment'}
-        </button>
+        {!isWero && !isSumUp && (
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={submitting}
+            className="w-full bg-black text-white py-2 rounded-md disabled:opacity-50"
+          >
+            {submitting ? 'Processing…' : 'Confirm payment'}
+          </button>
+        )}
+
+        {(isWero || isSumUp) && submitting && (
+          <p className="text-sm text-center text-gray-600">Processing…</p>
+        )}
+
+        {(isWero || isSumUp) && paidReference && error && (
+          <p className="text-xs text-gray-500 break-all">
+            Keep this reference: {paidReference}
+          </p>
+        )}
       </div>
     </Modal>
   );

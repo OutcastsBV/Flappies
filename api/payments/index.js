@@ -3,9 +3,8 @@ const { processExternalPayment } = require("./external");
 
 /**
  * Route a payment to its handler. CASH gets its own tendered/change-due
- * logic; every other enabled method (Stripe, SumUp, future providers) is
- * "record only" for now, handled generically so new methods don't need new
- * checkout code — just a payment_method_config row + registry entry.
+ * logic; Wero and SumUp are verified against their providers before this
+ * is called; Stripe is "record only" for now.
  */
 function processPayment(method, total, details = {}) {
   if (method === "CASH") {

@@ -66,5 +66,9 @@ describe("payments/index dispatcher", () => {
       { changeDue: 0 }
     );
     assert.deepEqual(processPayment("SUMUP", 10, {}), { changeDue: 0 });
+    assert.deepEqual(
+      processPayment("WERO", 10, { paymentReference: "payconiq_1" }),
+      { changeDue: 0 }
+    );
   });
 });

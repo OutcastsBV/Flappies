@@ -158,7 +158,7 @@ Edit these values at minimum:
 |----------|--------|
 | `PUBLIC_HOST` | This tenant's server IP or domain (must match what you used in Step 1) |
 | `POSTGRES_PASSWORD` | A strong random password |
-| `CONFIG_ENCRYPTION_KEY` | A random 32-byte string (used to encrypt Stripe/SumUp API keys at rest) — generate with `openssl rand -base64 32` |
+| `CONFIG_ENCRYPTION_KEY` | A random 32-byte string (used to encrypt Stripe/SumUp/Wero API keys at rest) — generate with `openssl rand -base64 32` |
 | `ZITADEL_URL`, `ZITADEL_CLIENT_ID`, `ZITADEL_CLIENT_SECRET`, `ZITADEL_PROJECT_ID`, `ZITADEL_IMPERSONATOR_PAT`, `ZITADEL_IMPERSONATOR_CLIENT_ID`, `ZITADEL_IMPERSONATOR_CLIENT_SECRET`, `ZITADEL_ORG_ID` | The values printed by [`provision-tenant-zitadel.sh`](#tenant-onboarding-central-zitadel) for this tenant |
 | `TENANT_ID` | A short, unique slug for this tenant (same as `TENANT_SLUG` used during onboarding) — tags every metric/log line so a shared Prometheus/Loki can filter by tenant |
 
@@ -168,6 +168,7 @@ Optionally, also fill in (all are safe to leave blank/commented — each feature
 
 | Variable(s) | Enables |
 |-------------|---------|
+| `PAYMENT_CASH_AVAILABLE`, `PAYMENT_STRIPE_AVAILABLE`, `PAYMENT_SUMUP_AVAILABLE`, `PAYMENT_WERO_AVAILABLE` | Host-level payment modules. `false` hides that method from Config and checkout for this tenant (the shop admin cannot turn it back on). Unset defaults to `true` |
 | `PROMETHEUS_PUSHGATEWAY_URL`, `PROMETHEUS_PUSH_INTERVAL_MS`, `METRICS_TOKEN` | Pushing technical (HTTP errors, etc.) and business (items sold, transactions, revenue, corrections) metrics — labeled with `TENANT_ID` — to the company's shared Prometheus, via a Pushgateway |
 | `LOKI_URL`, `LOKI_USERNAME`, `LOKI_PASSWORD` | Shipping structured logs (also labeled with `TENANT_ID`) to the company's shared Loki |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SUPPORT_EMAIL_TO` | The admin panel's "Support / feature request" form, which emails `SUPPORT_EMAIL_TO` (defaults to `support@flappies.shop`) over SMTP. Works with any SMTP-capable provider, including Microsoft 365 — see the comments in `deploy/.env.production.example` if the mail provider changes later, it's just a config change |
