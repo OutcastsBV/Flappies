@@ -31,6 +31,7 @@ data:
   # --- Central ZITADEL (shared company infrastructure, not deployed by this
   # chart — see global.zitadelUrl and docs/KUBERNETES.md) ---
   ZITADEL_URL: {{ .Values.global.zitadelUrl | quote }}
+  ZITADEL_EXTERNALDOMAIN: {{ .Values.global.zitadelExternalDomain | quote }}
   ZITADEL_REDIRECT_URI: "{{ $scheme }}://{{ .Values.global.frontendHost }}/callback"
 
   # --- Observability (optional, see values.yaml `observability:`) ---
