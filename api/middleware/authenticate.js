@@ -169,7 +169,13 @@ async function authenticate(req, res, next) {
 
     const { payload } = await jwtVerify(token, JWKS, {
       issuer: authConfig.tokenIssuer,
-      audience: authConfig.audience,
+      // Normal auth-code-flow logins carry the client ID as `aud`
+      // (standard OIDC behavior). Impersonated tokens issued via token
+      // exchange instead carry the requested project-audience scope
+      // (urn:zitadel:iam:org:project:id:{projectId}:aud), since ZITADEL has
+      // no equivalent reserved scope to add a client ID to `aud`. Accept
+      // either so both token shapes verify correctly.
+      audience: [authConfig.audience, authConfig.projectId].filter(Boolean),
     });
 
     req.auth = payload;
