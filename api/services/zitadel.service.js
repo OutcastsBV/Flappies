@@ -267,7 +267,7 @@ async function getImpersonatorAccessToken() {
     grant_type: "client_credentials",
     client_id: authConfig.impersonatorClientId,
     client_secret: authConfig.impersonatorClientSecret,
-    scope: "openid profile email urn:zitadel:iam:org:project:roles",
+    scope: `openid profile email urn:zitadel:iam:org:project:roles urn:zitadel:iam:org:project:id:${authConfig.projectId}:aud`,
   });
 
   const res = await fetchWithTimeout(`${authConfig.internalBase}/oauth/v2/token`, {
