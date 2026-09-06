@@ -168,7 +168,7 @@ async function authenticate(req, res, next) {
     const JWKS = await getJwks();
 
     const { payload } = await jwtVerify(token, JWKS, {
-      issuer: authConfig.issuer,
+      issuer: authConfig.tokenIssuer,
       audience: authConfig.audience,
     });
 

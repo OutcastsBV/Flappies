@@ -21,6 +21,23 @@ function resolvePublicHost() {
 
 const publicHost = resolvePublicHost();
 
+/**
+ * The issuer ZITADEL actually stamps into issued tokens' `iss` claim -
+ * its real public-facing URL (scheme + ExternalDomain + non-default port),
+ * as opposed to `issuer` above which is the internal base URL used to
+ * *call* ZITADEL and is not necessarily the same value.
+ */
+function resolveTokenIssuer() {
+  if (!publicHost) return issuer;
+  // ZITADEL_EXTERNALSECURE is not currently wired through the tenant chart,
+  // and this shared central ZITADEL instance is always reached over HTTPS
+  // externally (Traefik + cert-manager) regardless - so default true unless
+  // explicitly overridden.
+  const secure = process.env.ZITADEL_EXTERNALSECURE !== "false";
+  return `${secure ? "https" : "http"}://${publicHost}`;
+}
+const tokenIssuer = resolveTokenIssuer();
+
 /** Org domain suffix for ZITADEL login names (e.g. admin@10.61.2.101). */
 const orgDomain =
   process.env.ZITADEL_ORG_DOMAIN ||
@@ -34,6 +51,7 @@ function internalHostHeader() {
 
 module.exports = {
   issuer,
+  tokenIssuer,
   internalBase: process.env.ZITADEL_INTERNAL_URL || issuer,
   publicHost,
   orgDomain,
