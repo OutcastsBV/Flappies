@@ -9,6 +9,7 @@ function setAccessTokenCookie(res, accessToken, expiresInSeconds, env) {
     sameSite: "lax",
     maxAge,
     path: "/",
+    domain: env.cookieDomain,
   });
 }
 
@@ -18,6 +19,7 @@ function clearAccessTokenCookie(res, env) {
     secure: env.cookieSecure,
     sameSite: "lax",
     path: "/",
+    domain: env.cookieDomain,
   });
 }
 

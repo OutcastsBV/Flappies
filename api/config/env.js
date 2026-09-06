@@ -31,6 +31,26 @@ function loadEnv() {
     isProduction,
     port: Number(process.env.PORT || 3001),
     corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3002",
+    // Cookie domain derived from CORS_ORIGIN's hostname, with the leading
+    // label (e.g. "api.") and any single subdomain label stripped so the
+    // access-token cookie is readable from both the API host
+    // (api.<tenant>.<base>) and the frontend host (<tenant>.<base>).
+    // e.g. https://demo.flappies.shop -> demo.flappies.shop -> .flappies.shop
+    cookieDomain: (() => {
+      try {
+        const host = new URL(
+          process.env.CORS_ORIGIN || "http://localhost:3002"
+        ).hostname;
+        const parts = host.split(".");
+        // localhost or bare IP: no cookie domain override
+        if (parts.length < 3) return undefined;
+        // Drop the tenant subdomain label, keep the rest as the shared
+        // parent domain (e.g. "demo.flappies.shop" -> "flappies.shop").
+        return "." + parts.slice(1).join(".");
+      } catch {
+        return undefined;
+      }
+    })(),
     cookieSecure:
       process.env.COOKIE_SECURE === "true" ||
       (isProduction && process.env.COOKIE_SECURE !== "false"),
